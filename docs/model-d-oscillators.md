@@ -179,22 +179,20 @@ turn a slow waveform into clicks; that does not prove the oscillator phase
 or modulation waveform is wrong. Moog's [support note](https://moogmusic-help.freshdesk.com/en/support/solutions/articles/69000840857-moog-minimoog-model-d-why-is-my-model-d-making-a-clicking-sound-)
 also identifies audible LO clicks as expected behavior.
 
-## What must be calibrated before constants are frozen
+## Frozen calibration basis
 
-| Quantity | Current evidence | Required resolution |
-|---|---|---|
-| Exact board/retrofits | Readable old/new drawings; original factory changes documented | Freeze the CA3046 drawing and applicable corrections. Record deviations if a reference unit differs. |
-| Pulse widths and signs | Factory text gives 50% to approximately 15%; switch network fixes intermediate selection | Calculate all three signed duty cycles and confirm loading. The commonly repeated intermediate 35% value is not accepted here as measured fact. |
-| Triangle/saw mix | Physical resistor sum confirmed | Transcribe the actual selected-board resistor values, source impedances and switch load; derive coefficients. |
-| Frequency-knob limits | Original owner's wording and later board text/drawing differ | Derive the chosen board's transfer curve; do not import a reissue's panel range. |
-| LO frequency | Sub-audio mode confirmed; precise operating point unspecified here | Derive its offset and control-off tuning response, then validate a frequency grid. |
-| Modulation depth, sign, coupling | Original route confirmed | Derive board/wheel transfer; measure or simulate carrier response and oscillator 3 feedback. |
-| Level, curvature, triangle reset residue | Circuit topology established, unit variation unmeasured | Compare a circuit reference or documented raw captures; distinguish intended shape from aged/miscalibrated parts. |
-| Analog drift and coupling | No measurement of a reference unit | Leave unmodeled initially; no invented randomness. |
+[Calibration version 1](oscillator-calibration.md) resolves the initial
+implementation basis: signed normalized shape/level and pulse tables, loaded
+triangle/saw mixture, normal/wide tuning, LO observations, modulation offsets
+and conditional feedback means. Its portable numeric bundle freezes observable
+reference targets and explicit engineering approximations. It does not claim
+unique internal voltages, physical-unit qualification or an exact continuous
+wheel law. Raw low-note/LO audio shape remains excluded; common-path harmonic
+ratios provide a separately validated static comparison.
 
-These are bounded calibration tasks. Supporting reference observations must
-retain their observation-path limits and must not be presented as physical-unit
-or original-circuit qualification. Keep different Model D revisions distinct.
+The actual shared C core is the next implementation. Its concrete interface
+requires approval before application; device controls and saved identity remain
+later gates. No second oscillator model is needed.
 
 The factory specification sheet itself contains an apparent oscillator-number
 typo for reverse saw; the original owner's guide and dedicated oscillator 3
@@ -310,8 +308,7 @@ baseline records the files at the time it is established, and must not be
 presented as proof of earlier capture-time integrity.
 
 The implementation sequence and dependency graph belong in GitHub issues.
-This document records durable source findings and design rationale. Host
-measurement work and a concrete contract proposal can proceed while circuit
-calibration remains open; constants and targets require a separate review
-before they are frozen. Shared DSP interfaces, device controls, sound identity
-and persisted meanings retain their explicit approval gates.
+This document records durable source findings and design rationale. The initial normalized calibration and observation targets are frozen in
+version 1, with exclusions and approximations stated separately. Shared DSP
+interfaces, device controls, sound identity and persisted meanings retain
+their explicit approval gates.
