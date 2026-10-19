@@ -1,0 +1,122 @@
+[tools]
+python = "3.12"
+uv = "latest"
+cmake = "latest"
+
+[bootstrap.packages]
+"brew:m68k-elf-gcc" = "latest"
+"brew:m68k-elf-binutils" = "latest"
+"apt:build-essential" = { os = "linux" }
+
+[env]
+_.path = ["/opt/homebrew/bin", "/home/linuxbrew/.linuxbrew/bin"]
+PYTHONPATH = "{{config_root}}/vendor/elekloader"
+ELEKLOADER_STOCK = "{{config_root}}/firmware/Digitakt_OS1.54.syx"
+ELEKLOADER_CROSS = "m68k-elf-"
+DIGIEMU_HOME = "{{config_root}}/.digiemu"
+FW_VERSION = "MDIG" # Firmware version field is four characters.
+
+[tasks.bootstrap]
+description = "Fetch submodules and prepare the emulator"
+run = [
+  "git submodule update --init",
+  'cd vendor/digiemu && uv sync --python "$(mise which python)" && tools/install-patched-unicorn.sh',
+]
+
+[tasks."build:deps"]
+description = "Build device dependencies"
+depends = ["build:deps:digitakt", "build:deps:digitone"]
+
+[tasks."build:deps:digitakt"]
+description = "Build Core and machine-pages for each local Digitakt OS"
+run = '''
+set -eu
+for stock in firmware/Digitakt_OS*.syx; do
+  [ -f "$stock" ] || { echo "Add Digitakt_OS1.53.syx or Digitakt_OS1.54.syx to firmware/" >&2; exit 1; }
+  os=${stock##*_OS}; os=${os%.syx}
+  mkdir -p "out/os$os"
+  rm -f "out/os$os/"*.elemod
+  python -m elekloader.sdk.build vendor/elekloader/mods/core --stock "$stock" --out "out/os$os"
+  python -m elekloader.sdk.build vendor/elekloader/mods/machine-pages --stock "$stock" --out "out/os$os"
+done
+'''
+
+[tasks.build]
+description = "Build ModelDigi device mods"
+depends = ["build:digitakt", "build:digitone"]
+
+[tasks."build:digitakt"]
+description = "Build and lint the silent Digitakt machine for each local OS"
+depends = ["build:deps:digitakt"]
+run = '''
+set -eu
+for stock in firmware/Digitakt_OS*.syx; do
+  os=${stock##*_OS}; os=${os%.syx}
+  dir=out/os$os
+  python -m elekloader.sdk.build machines/digitakt --stock "$stock" --out "$dir"
+  for mod in "$dir/"*.elemod; do
+    case "$mod" in *-os$os.elemod) ;; *) mv "$mod" "${mod%.elemod}-os$os.elemod" ;; esac
+  done
+  python -m elekloader.lint "$dir/"modeldigi-*.elemod --stock "$stock" --with "$dir/"core-*.elemod --with "$dir/"machine-pages-*.elemod
+done
+'''
+
+[tasks.test]
+description = "Check silent DSP output and Digitakt track isolation on the host"
+run = [
+  "mkdir -p out",
+  "cc -std=c99 -O2 -Wall -Wextra -Werror dsp/dsp.c tests/test_dsp.c -o out/test_dsp",
+  "out/test_dsp",
+  "cc -std=c99 -O2 -Wall -Wextra -Werror -Ivendor/elekloader/elekloader/sdk/include dsp/dsp.c machines/digitakt/modeldigi.c tests/test_digitakt.c -o out/test_digitakt",
+  "out/test_digitakt",
+]
+
+[tasks.firmware]
+description = "Build custom firmware for the device targets"
+depends = ["firmware:digitakt", "firmware:digitone"]
+
+[tasks."firmware:digitakt"]
+description = "Package the selected stock OS with the silent ModelDigi machine"
+depends = ["build:digitakt"]
+run = '''
+set -eu
+os=${ELEKLOADER_STOCK##*_OS}; os=${os%.syx}
+dir=out/os$os
+python -m elekloader.patch --stock "$ELEKLOADER_STOCK" --mod "$dir/"core-*.elemod --mod "$dir/"machine-pages-*.elemod --mod "$dir/"modeldigi-*.elemod --out out/Digitakt_ModelDigi.syx --version "$FW_VERSION"
+'''
+
+[tasks.emu]
+description = "Build firmware and open its emulator"
+depends = ["emu:digitakt", "emu:digitone"]
+
+[tasks."emu:digitakt"]
+description = "Prepare the custom firmware in digiemu and open its panel"
+depends = ["firmware:digitakt"]
+dir = "vendor/digiemu"
+run = '''
+set -eu
+version=$(printf %s "$FW_VERSION" | tr 'A-Z' 'a-z' | tr -c 'a-z0-9.' '-')
+hash=$(shasum -a 256 "{{config_root}}/out/Digitakt_ModelDigi.syx" | cut -c1-8)
+fw="$DIGIEMU_HOME/firmware/dt1-$version-$hash"
+uv run --python "$(mise which python)" python -m emu.portable --add "{{config_root}}/out/Digitakt_ModelDigi.syx" --yes
+uv run --python "$(mise which python)" python -m emu.portable --worker panel "$fw"
+'''
+
+[tasks."build:deps:digitone"]
+description = "Placeholder: Digitone dependencies"
+run = 'echo "Digitone support is not implemented; no artifacts produced"'
+
+[tasks."build:digitone"]
+description = "Placeholder: Digitone build"
+depends = ["build:deps:digitone"]
+run = 'echo "Digitone support is not implemented; no artifacts produced"'
+
+[tasks."firmware:digitone"]
+description = "Placeholder: Digitone firmware"
+depends = ["build:digitone"]
+run = 'echo "Digitone support is not implemented; no artifacts produced"'
+
+[tasks."emu:digitone"]
+description = "Placeholder: Digitone emulator"
+depends = ["firmware:digitone"]
+run = 'echo "Digitone support is not implemented; no panel opened"'

@@ -1,0 +1,12 @@
+/firmware/
+/out/
+/.digiemu/
+/research/
+__pycache__/
+.DS_Store
+*.syx
+*.elemod
+*.bin
+*.snap
+*.img
+*.wav
