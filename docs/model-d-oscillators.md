@@ -192,9 +192,9 @@ also identifies audible LO clicks as expected behavior.
 | Level, curvature, triangle reset residue | Circuit topology established, unit variation unmeasured | Compare a circuit reference or documented raw captures; distinguish intended shape from aged/miscalibrated parts. |
 | Analog drift and coupling | No measurement of a reference unit | Leave unmodeled initially; no invented randomness. |
 
-These are bounded calibration tasks, not reasons to substitute a plugin
-or another Moog model for the reference. A plugin may provide supporting
-listening evidence, clearly labeled as plugin evidence.
+These are bounded calibration tasks. Supporting reference observations must
+retain their observation-path limits and must not be presented as physical-unit
+or original-circuit qualification. Keep different Model D revisions distinct.
 
 The factory specification sheet itself contains an apparent oscillator-number
 typo for reverse saw; the original owner's guide and dedicated oscillator 3
@@ -204,9 +204,14 @@ behavioral requirement. [S3, printed vi; S1, F; S2, Figure 9-3]
 ## Recommended digital implementation
 
 Start with a compact behavioral model, not a per-sample transistor solver.
-Use a floating-point offline reference and a bounded fixed-point production
-engine. This is an engineering recommendation for the ColdFire target,
-not a finding that a chosen implementation already meets its CPU budget.
+Exercise the actual shared C engine through a standalone host renderer, with
+independent analytic checks and reviewed recorded measurements. For static
+shapes, additive harmonic series can check the bandlimiting mathematics.
+For modulation, check numerical convergence of the same C algorithm as its
+internal rate increases; convergence alone does not establish circuit fidelity.
+Do not maintain a second oscillator implementation as a substitute for the
+recordings. Bounded fixed-point rendering is an engineering recommendation
+for ColdFire, not evidence that an implementation meets its CPU budget.
 
 1. Keep three phase states and correction history per machine instance.
    Advance phases through notes, waveform changes and source muting. Note
@@ -280,7 +285,7 @@ Preserve stock non-ModelDigi tracks. Leave the Digitone scaffold untouched.
 | Circuit/reference | Identified board, signed waveform records, transfer derivations and explicit uncertainties. A physical reference is desirable; circuit simulation alone remains simulation evidence. |
 | Host mechanics | Frequencies, all selectors/ranges, pulse duty/polarity, relative levels, DC paths, continuous phase, block-splitting equivalence, extreme inputs, overflow and buffer guards. |
 | Audio quality | Coherent spectral comparison against additive/oversampled reference; complex harmonics where phase matters; low and high pitches; narrow pulses; shape/range/level transitions. Proposed gates: pitch error at most 1 cent in the agreed unmodulated domain and static in-band alias residual at most -60 dBc over a stated practical pitch grid. Freeze exact analysis/window/band definitions before accepting results. |
-| Modulation | Tracking on/off, muted oscillator 3, all modulation shapes, low/audio rates, depth extremes, mean-pitch shift, self-modulation when connected, bounded feedback and convergence when the offline reference rate doubles. State the supported domain; do not weaken a failed gate silently. |
+| Modulation | Tracking on/off, muted oscillator 3, all modulation shapes, low/audio rates, depth extremes, mean-pitch shift over complete modulation periods, self-modulation when connected, bounded feedback and convergence as the same C algorithm's internal rate increases. Distinguish cents of mean frequency from time-averaged pitch in cents. State the supported domain; do not weaken a failed gate silently. |
 | Firmware | Build/lint/package both supported Digitakt OS releases; compiled note/control dispatch, blank-to-configured cold start, locks/LFOs, machine switching, unrelated-track isolation and save/reload. |
 | Timing | Compare matched stock/scaffold and candidate firmware with two realistic ModelDigi instances, including other host activity. Record maximum render cost/jitter, not only average or host speed. No promised instance capacity before measurement. |
 | Physical device | After separately authorized installation, manual panel setup plus read-only USB verification by default; exact-build controls, levels, note behavior and persistence. Emulator success is not hardware qualification or analog-fidelity proof. |
@@ -291,7 +296,22 @@ integration, physical-device behavior and agreement with a particular
 analog unit. End-to-end filtered recordings cannot uniquely identify raw
 oscillator shape or polarity.
 
+An audio output before a filter or amplifier can still be AC-coupled. Turning
+off a downstream DC blocker does not bypass source coupling. Screen the
+observation path before treating LO shape, DC, pulse duty or relative levels
+as core properties. Short multi-oscillator spectra also depend on beating and
+starting phase; use within-path ratios or appropriately averaged comparisons.
+
+Waveform fits must preserve the expected polarity and use fractional phase
+alignment. Record interpolation, window and normalization with extracted
+harmonics. Modulation span must be accompanied by a mean-pitch measurement;
+centered plots alone can conceal a duty-dependent offset. An integrity hash
+baseline records the files at the time it is established, and must not be
+presented as proof of earlier capture-time integrity.
+
 The implementation sequence and dependency graph belong in GitHub issues.
-This reference branch contains durable source findings and design rationale
-only; it does not authorize implementation or change any compatibility
-boundary.
+This document records durable source findings and design rationale. Host
+measurement work and a concrete contract proposal can proceed while circuit
+calibration remains open; constants and targets require a separate review
+before they are frozen. Shared DSP interfaces, device controls, sound identity
+and persisted meanings retain their explicit approval gates.
