@@ -45,6 +45,20 @@
   "analysis_sha256": "519a57804833c55991fe5e518638b902c2014d9dcf1befd6ef3bd957b22b10e5",
   "extraction": {
     "static": "1\u20132 seconds, channel 1; constant + cos/sin least squares at independently measured common frequency; complex coefficient (cos - i*sin)/2; divide each shape harmonic by same-harmonic saw coefficient at identical absolute time; no independent phase/gain/inversion fitting",
+    "modulation_shape_to_global": [
+      0,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "modulation_carrier_baseline_hz": 261.7635755297644,
+    "modulation_source_unmodulated_hz": {
+      "control_off": 0.5121426454971151,
+      "control_on": 2.0394793399812405
+    },
+    "depth_calibration": "Square control source 1st-to-99th percentile pitch difference / 1200, same amount; fitted observation in octave units, not a continuous wheel law",
     "static_training_notes": [
       60,
       84
@@ -89,7 +103,8 @@
     ],
     "modulation": "Pitch-control source has opposite sign to the chosen audio convention; normalized pulses 0..1 high during audio-low fraction. Triangle/saws retain separately fitted bias; latent physical volts are not claimed.",
     "modulation_triangle_bias": 0.0261,
-    "modulation_saw_bias": -0.0047,
+    "modulation_saw_bias": -0.0061,
+    "modulation_reverse_saw_bias": -0.0035,
     "modulation_depth": "DSP depth is octaves multiplying a unit pulse 0..1. Recorded amount is nonlinear; retain sampled conditions, no continuous wheel law is frozen.",
     "normal_tune_cents": 700.5038,
     "control_off_tune_cents": 3502.5,
@@ -608,6 +623,7 @@
     {
       "shape": 0,
       "amount": 0.05,
+      "calibrated_depth_octaves": 0.0570000721519088,
       "feedback": false,
       "source_sha256": "78fb0520972701831313c6acde554547346265419f838d189f3bc8e57bcb09b3",
       "modulation_hz": 0.5111337410131112,
@@ -619,6 +635,7 @@
     {
       "shape": 0,
       "amount": 0.1,
+      "calibrated_depth_octaves": 0.11330918114380102,
       "feedback": false,
       "source_sha256": "03c0c78dd21cf6c00a4a4b7f291ecd93a62f0bb19c0b627a330b5cd8ae5dee87",
       "modulation_hz": 0.5118683412932465,
@@ -636,6 +653,7 @@
     {
       "shape": 0,
       "amount": 0.25,
+      "calibrated_depth_octaves": 0.2821935837227073,
       "feedback": false,
       "source_sha256": "1cb4d632dff4664b632bdefa3b64151fa0d94bb7f8228e1b0d60e7eaa3bcdc0c",
       "modulation_hz": 0.5121073655351783,
@@ -647,6 +665,7 @@
     {
       "shape": 0,
       "amount": 0.5,
+      "calibrated_depth_octaves": 0.44303697681008697,
       "feedback": false,
       "source_sha256": "db0530f27767491b02ec8c203bff1f4ba337af14b7402c3e77d8ba9db22f8dca",
       "modulation_hz": 0.5121291296459702,
@@ -664,6 +683,7 @@
     {
       "shape": 0,
       "amount": 0.75,
+      "calibrated_depth_octaves": 0.7547848272716121,
       "feedback": false,
       "source_sha256": "f8a4de25d56e9effedd325812acad0d91b00eb27c1f650ec9136192ff8032869",
       "modulation_hz": 0.5121390642476408,
@@ -675,6 +695,7 @@
     {
       "shape": 0,
       "amount": 1,
+      "calibrated_depth_octaves": 1.5089696067839369,
       "feedback": false,
       "source_sha256": "bae4c906286663fc86a0f929bb0cfe8df97f6a5fbec8f1b3f1db9a6a88328d44",
       "modulation_hz": 0.512144678612138,
@@ -686,6 +707,7 @@
     {
       "shape": 1,
       "amount": 0.05,
+      "calibrated_depth_octaves": 0.0570000721519088,
       "feedback": false,
       "source_sha256": "38a297ab07706b5d5ce144a36cba3859e1808de81b6a52f1bdf32a0ebeb2f61f",
       "modulation_hz": 0.5121533540455324,
@@ -697,6 +719,7 @@
     {
       "shape": 1,
       "amount": 0.1,
+      "calibrated_depth_octaves": 0.11330918114380102,
       "feedback": false,
       "source_sha256": "b78214a37030acc8b6cce09a5794161d4d25ef6642298e8ca8b1e390d157b321",
       "modulation_hz": 0.5121628573587069,
@@ -714,6 +737,7 @@
     {
       "shape": 1,
       "amount": 0.25,
+      "calibrated_depth_octaves": 0.2821935837227073,
       "feedback": false,
       "source_sha256": "94149a6e4df023daa1cb2bbbe5e04e854aca347835dd465b2d86c3dc0b28c2e6",
       "modulation_hz": 0.5121473112280301,
@@ -725,6 +749,7 @@
     {
       "shape": 1,
       "amount": 0.5,
+      "calibrated_depth_octaves": 0.44303697681008697,
       "feedback": false,
       "source_sha256": "95421f704ce60df9ddff51621a851088c432f6550c5402aaef7da8d2106d295d",
       "modulation_hz": 0.5121794134099728,
@@ -742,6 +767,7 @@
     {
       "shape": 1,
       "amount": 0.75,
+      "calibrated_depth_octaves": 0.7547848272716121,
       "feedback": false,
       "source_sha256": "0c2cf56c4228829af2c7df1e748244a3f9dba42d97dcaa4d184c4a1ebc905327",
       "modulation_hz": 0.512177657401183,
@@ -753,6 +779,7 @@
     {
       "shape": 1,
       "amount": 1,
+      "calibrated_depth_octaves": 1.5089696067839369,
       "feedback": false,
       "source_sha256": "9ca294282a9e9a5a365419e64a4cd516cad9364a0bdfacbe7bb32048ddddce77",
       "modulation_hz": 0.512192787013504,
@@ -764,6 +791,7 @@
     {
       "shape": 2,
       "amount": 0.05,
+      "calibrated_depth_octaves": 0.0570000721519088,
       "feedback": false,
       "source_sha256": "e8af935247b33e6a3b3cc1d4e999d27a0b456d7bef48d1371b48e562c3dfe267",
       "modulation_hz": 0.5121328141515589,
@@ -775,6 +803,7 @@
     {
       "shape": 2,
       "amount": 0.1,
+      "calibrated_depth_octaves": 0.11330918114380102,
       "feedback": false,
       "source_sha256": "aefd6612f62e6070f2cfbd85074dc478f19d8da4b2d07964906cff2d3f7a02cf",
       "modulation_hz": 0.5121414075736003,
@@ -792,6 +821,7 @@
     {
       "shape": 2,
       "amount": 0.25,
+      "calibrated_depth_octaves": 0.2821935837227073,
       "feedback": false,
       "source_sha256": "abba5b1f4c8dfddc0703bbbfa77ff17af8e5102f93a7b7bc3bd0429badb02723",
       "modulation_hz": 0.5121815254997139,
@@ -803,6 +833,7 @@
     {
       "shape": 2,
       "amount": 0.5,
+      "calibrated_depth_octaves": 0.44303697681008697,
       "feedback": false,
       "source_sha256": "7fe5acdd02b7b2cc891e69610225c54accf6b3cb76d17f3e4a209e7206d9c708",
       "modulation_hz": 0.512133739997177,
@@ -820,6 +851,7 @@
     {
       "shape": 2,
       "amount": 0.75,
+      "calibrated_depth_octaves": 0.7547848272716121,
       "feedback": false,
       "source_sha256": "9d54aad87a9bb4ed606ee4c672c0546a0a6fb7d86bb9bbb9d2da437dd2de741c",
       "modulation_hz": 0.5121095157140183,
@@ -831,6 +863,7 @@
     {
       "shape": 2,
       "amount": 1,
+      "calibrated_depth_octaves": 1.5089696067839369,
       "feedback": false,
       "source_sha256": "268f1876d37ffc750c9968b81bf6cd4aad6298d79e3662c96e70815dece640f0",
       "modulation_hz": 0.5121101901213637,
@@ -842,6 +875,7 @@
     {
       "shape": 3,
       "amount": 0.05,
+      "calibrated_depth_octaves": 0.0570000721519088,
       "feedback": false,
       "source_sha256": "1f8fed574a639f6642d2b2881f20e3e3ea50e413ae534ec1603b8f158616b0ee",
       "modulation_hz": 0.5121410743637448,
@@ -853,6 +887,7 @@
     {
       "shape": 3,
       "amount": 0.1,
+      "calibrated_depth_octaves": 0.11330918114380102,
       "feedback": false,
       "source_sha256": "198d9690299f8fd4090ab054698c47a6cd6480a961f8a5f22b7718775438c61a",
       "modulation_hz": 0.5121789048451176,
@@ -870,6 +905,7 @@
     {
       "shape": 3,
       "amount": 0.25,
+      "calibrated_depth_octaves": 0.2821935837227073,
       "feedback": false,
       "source_sha256": "c0294c4c41c2e898834760cb69bd90664508cc10a9f9a03f10bd359494891809",
       "modulation_hz": 0.5121777159876454,
@@ -881,6 +917,7 @@
     {
       "shape": 3,
       "amount": 0.5,
+      "calibrated_depth_octaves": 0.44303697681008697,
       "feedback": false,
       "source_sha256": "1453db86fd961a2ff7593f32e24495ff7092f07f296a8ac35e3e07270d0a8800",
       "modulation_hz": 0.5121229459201563,
@@ -898,6 +935,7 @@
     {
       "shape": 3,
       "amount": 0.75,
+      "calibrated_depth_octaves": 0.7547848272716121,
       "feedback": false,
       "source_sha256": "9c4747347da3d08d2fa6ae15a8405436461e6a1f323074927f491416b86cc39f",
       "modulation_hz": 0.5121469066255259,
@@ -909,6 +947,7 @@
     {
       "shape": 3,
       "amount": 1,
+      "calibrated_depth_octaves": 1.5089696067839369,
       "feedback": false,
       "source_sha256": "65e68910c1ef0ca37ea5387e4578dd988a01c7bdffb3ddcee4dd7fabe095a26a",
       "modulation_hz": 0.5121227901478891,
@@ -920,6 +959,7 @@
     {
       "shape": 4,
       "amount": 0.05,
+      "calibrated_depth_octaves": 0.0570000721519088,
       "feedback": false,
       "source_sha256": "25e4271edafc73cb0718deccc6d4d25b5704d8c94edd0e8c65a7791d0ac33d9a",
       "modulation_hz": 0.5121678507980748,
@@ -931,6 +971,7 @@
     {
       "shape": 4,
       "amount": 0.1,
+      "calibrated_depth_octaves": 0.11330918114380102,
       "feedback": false,
       "source_sha256": "eb48204db255b4da689d0dd128981e6ef2985aaf65e7da449bea6d2ebe1d11e6",
       "modulation_hz": 0.5121120072031004,
@@ -948,6 +989,7 @@
     {
       "shape": 4,
       "amount": 0.25,
+      "calibrated_depth_octaves": 0.2821935837227073,
       "feedback": false,
       "source_sha256": "5d85d15b0b0a4677c3736114f9dbbb8fece36edc770dd75277afa8df89e28f40",
       "modulation_hz": 0.5121652694835793,
@@ -959,6 +1001,7 @@
     {
       "shape": 4,
       "amount": 0.5,
+      "calibrated_depth_octaves": 0.44303697681008697,
       "feedback": false,
       "source_sha256": "53c01e37638475cc2cfb6b738b13187ec24c412fa28c423b3b6d190e18797b59",
       "modulation_hz": 0.5121187856015814,
@@ -976,6 +1019,7 @@
     {
       "shape": 4,
       "amount": 0.75,
+      "calibrated_depth_octaves": 0.7547848272716121,
       "feedback": false,
       "source_sha256": "931bf89541150cf3b41bdc5c990042b6957dc6e507c41716bb430c001c34bbdc",
       "modulation_hz": 0.512172762882073,
@@ -987,6 +1031,7 @@
     {
       "shape": 4,
       "amount": 1,
+      "calibrated_depth_octaves": 1.5089696067839369,
       "feedback": false,
       "source_sha256": "20013b54e9d876d45091778d2d693d93f2375bc42ec8c93223d89048c1f7de8d",
       "modulation_hz": 0.5121292260692446,
@@ -998,6 +1043,7 @@
     {
       "shape": 5,
       "amount": 0.05,
+      "calibrated_depth_octaves": 0.0570000721519088,
       "feedback": false,
       "source_sha256": "3628aa36c9b86d4979ddf821bf7bfa6767a8dc39f024b0f3e49418e4619e7345",
       "modulation_hz": 0.5121426779164718,
@@ -1009,6 +1055,7 @@
     {
       "shape": 5,
       "amount": 0.1,
+      "calibrated_depth_octaves": 0.11330918114380102,
       "feedback": false,
       "source_sha256": "e4706813cb514d630f9557ade42ffe72c41ec309acca6cc39f39da746f5f2b4a",
       "modulation_hz": 0.5121423445214673,
@@ -1026,6 +1073,7 @@
     {
       "shape": 5,
       "amount": 0.25,
+      "calibrated_depth_octaves": 0.2821935837227073,
       "feedback": false,
       "source_sha256": "24503d2a1affdaf5a0dd25eb99ee2590f11b4955a49ccedb7d0d85f65f550505",
       "modulation_hz": 0.5121141282303612,
@@ -1037,6 +1085,7 @@
     {
       "shape": 5,
       "amount": 0.5,
+      "calibrated_depth_octaves": 0.44303697681008697,
       "feedback": false,
       "source_sha256": "8035505e32c8cd972fb560f5842491ac91ca2b189221a84079df17eaad27319a",
       "modulation_hz": 0.5121187095538214,
@@ -1054,6 +1103,7 @@
     {
       "shape": 5,
       "amount": 0.75,
+      "calibrated_depth_octaves": 0.7547848272716121,
       "feedback": false,
       "source_sha256": "1bcfdbd89a00a1dd68143854dfac444668143347f6d9243b38b6da8e291d9e1d",
       "modulation_hz": 0.5121316777432361,
@@ -1065,6 +1115,7 @@
     {
       "shape": 5,
       "amount": 1,
+      "calibrated_depth_octaves": 1.5089696067839369,
       "feedback": false,
       "source_sha256": "75467df0d2a021fdf269bc4321f2525856a81d9bf75b468f3a3a31772acc9572",
       "modulation_hz": 0.512138301080884,
@@ -1076,6 +1127,7 @@
     {
       "shape": 0,
       "amount": 0.1,
+      "calibrated_depth_octaves": 0.11330918114380102,
       "feedback": true,
       "source_sha256": "9a0742e22546a32d764fc735a825f13a6d5fe6fd9f70f93473c83c681db7ed56",
       "modulation_hz": 2.044939623697971,
@@ -1087,6 +1139,7 @@
     {
       "shape": 0,
       "amount": 0.5,
+      "calibrated_depth_octaves": 0.44303697681008697,
       "feedback": true,
       "source_sha256": "02cb5fdd0d7545768a4f8a19cdd7ea43e2f21bcc2070cf892123401d9bf43d3d",
       "modulation_hz": 2.051146912238394,
@@ -1098,6 +1151,7 @@
     {
       "shape": 1,
       "amount": 0.1,
+      "calibrated_depth_octaves": 0.11330918114380102,
       "feedback": true,
       "source_sha256": "a7e24eb61e4cbb66486657a42c886236c2aa6b4c359bb814d22bf59bd6593345",
       "modulation_hz": 2.040321597329471,
@@ -1109,6 +1163,7 @@
     {
       "shape": 1,
       "amount": 0.5,
+      "calibrated_depth_octaves": 0.44303697681008697,
       "feedback": true,
       "source_sha256": "1bb8c239431d9d2bb7a0d5e807a720c9d4a9a932645f93a56a5388e5c549ebb1",
       "modulation_hz": 2.0313607008003105,
@@ -1120,6 +1175,7 @@
     {
       "shape": 2,
       "amount": 0.1,
+      "calibrated_depth_octaves": 0.11330918114380102,
       "feedback": true,
       "source_sha256": "e99af579ad888a3fc673270442f14c0af600ae6c2b6d316e4a1ef1a55ae1e8e2",
       "modulation_hz": 2.040325588439005,
@@ -1131,6 +1187,7 @@
     {
       "shape": 2,
       "amount": 0.5,
+      "calibrated_depth_octaves": 0.44303697681008697,
       "feedback": true,
       "source_sha256": "c736fed4eb86bcd6b9594248780b8ed788e90dd8f8fce4cba9d2484e1fc6115c",
       "modulation_hz": 2.0313718687527196,
@@ -1142,6 +1199,7 @@
     {
       "shape": 3,
       "amount": 0.1,
+      "calibrated_depth_octaves": 0.11330918114380102,
       "feedback": true,
       "source_sha256": "a074d9ed5cdd5fcd0f4970d4e46dccdc21dc7825c4af5c2a6e7ef1888aa21201",
       "modulation_hz": 2.1227102105449713,
@@ -1153,6 +1211,7 @@
     {
       "shape": 3,
       "amount": 0.5,
+      "calibrated_depth_octaves": 0.44303697681008697,
       "feedback": true,
       "source_sha256": "8724dac449685e5593e224d1c38454d8d6d3153cdc28f2e95fa3b7f089388264",
       "modulation_hz": 2.357432170969787,
@@ -1164,6 +1223,7 @@
     {
       "shape": 4,
       "amount": 0.1,
+      "calibrated_depth_octaves": 0.11330918114380102,
       "feedback": true,
       "source_sha256": "8f0c375a26787126973b40fe7a28c0fe26f7f0ac1a163ee9e57bba2c7e448896",
       "modulation_hz": 2.1535277860440587,
@@ -1175,6 +1235,7 @@
     {
       "shape": 4,
       "amount": 0.5,
+      "calibrated_depth_octaves": 0.44303697681008697,
       "feedback": true,
       "source_sha256": "eae62c6d50d577d161e7890e39199cc90ef5a0db2baa74cff149326386ece175",
       "modulation_hz": 2.4948818317198085,
@@ -1186,6 +1247,7 @@
     {
       "shape": 5,
       "amount": 0.1,
+      "calibrated_depth_octaves": 0.11330918114380102,
       "feedback": true,
       "source_sha256": "e7e60b15d9763a991873e4f4cc73008c82bc47d7b8a69e281690ae6625813c94",
       "modulation_hz": 2.1736250321995687,
@@ -1197,6 +1259,7 @@
     {
       "shape": 5,
       "amount": 0.5,
+      "calibrated_depth_octaves": 0.44303697681008697,
       "feedback": true,
       "source_sha256": "832f5f96e13b6150bca069b61a678a4e9ad59ca9a8a773bce1b3eb27e6b6ad52",
       "modulation_hz": 2.591130551352268,

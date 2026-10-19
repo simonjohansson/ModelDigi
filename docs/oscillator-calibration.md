@@ -100,7 +100,8 @@ discard a real, duty-dependent pitch shift.
 
 DSP depth is octaves multiplying this unit control source. Absolute internal
 volts are unnecessary and unmeasured. Initial triangle and saw control shapes
-use `-audio/2`, with respective normalized biases **+0.0261** and **-0.0047**.
+use `-audio/2`, with triangle/saw/reverse-saw normalized biases
+**+0.0261/-0.0061/-0.0035** respectively.
 These are fitted behavioral approximations. The three pulses use their
 unipolar convention directly. Span and both mean definitions, rather than
 these approximate coefficients alone, are the acceptance targets.
@@ -109,7 +110,11 @@ There are 36 new open-loop depth observations: six shapes at amounts 0.05,
 0.1, 0.25, 0.5, 0.75 and 1, plus six zero-depth controls. The recorded amount
 is nonlinear: square spans at 0.25/0.5/0.75/1 are about
 338.48/531.50/905.56/1810.49 cents. **No continuous wheel law is frozen.**
-The DSP accepts actual octave depth; a later device-control mapping must state
+Each case records a calibrated octave depth inferred from its matching square
+control source's 1st-to-99th percentile pitch difference divided by 1200. The
+bundle explicitly maps native modulation shape indices to global waveform
+indices, and records the unmodulated carrier/source frequencies. The DSP
+accepts actual octave depth; a later device-control mapping must state
 its interpolation and validate intermediate settings. Do not assume amount
 0.5 means half the maximum depth.
 
