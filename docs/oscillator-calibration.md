@@ -106,6 +106,15 @@ These are fitted behavioral approximations. The three pulses use their
 unipolar convention directly. Span and both mean definitions, rather than
 these approximate coefficients alone, are the acceptance targets.
 
+The C control path refines the initial triangle gain by 1.0010033155 and the
+shared saw/reverse-saw gain by 1.0036560496, before the unchanged biases. These
+are behavioral corrections, not inferred circuit voltages. Each gain minimizes
+squared span error through the origin using only open-loop amounts 0.1/0.5;
+other amounts and every feedback condition remain holdouts. Audio coefficients,
+pulse control values, frozen observations and tolerances stay unchanged.
+All 48 slow cases pass, but reverse-saw feedback at amount 0.5 is close to the
+3-cent span limit. Multiple start phases and audio-rate FM remain unqualified.
+
 There are 36 new open-loop depth observations: six shapes at amounts 0.05,
 0.1, 0.25, 0.5, 0.75 and 1, plus six zero-depth controls. The recorded amount
 is nonlinear: square spans at 0.25/0.5/0.75/1 are about
@@ -173,10 +182,11 @@ unchanged. New batches have their own immediate post-completion baselines.
 Calibration validation covers all new formats/settings, finite audio, headroom,
 stereo equality, source integrity, known-signal harmonic extraction, held-out
 pitch ratios, loaded-mixture residuals, feedback cycle integrals and independent
-numeric reruns. Portable DSP tests will consume the committed numbers without
+numeric reruns. Portable DSP tests consume the committed numbers without
 the WAVs. An explicit local comparison must verify the private evidence hashes
 and fail clearly when recordings are missing; it must not regenerate targets.
 
-No C oscillator or alternate oscillator model is supplied by this calibration.
-The concrete shared C interface still needs its explicit review before being
-applied. Device controls, saved meanings and machine identity are later gates.
+The approved C-only interface now supports host rendering and comparison against
+this bundle. Python performs measurements and static Fourier checks; it does
+not implement an alternate oscillator. Device controls, saved meanings and
+machine identity are later gates.

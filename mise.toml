@@ -62,13 +62,54 @@ done
 '''
 
 [tasks.test]
-description = "Check silent DSP output and Digitakt track isolation on the host"
+description = "Check C oscillator mechanics, silent device output and track isolation"
 run = [
   "mkdir -p out",
   "cc -std=c99 -O2 -Wall -Wextra -Werror dsp/dsp.c tests/test_dsp.c -o out/test_dsp",
   "out/test_dsp",
   "cc -std=c99 -O2 -Wall -Wextra -Werror -Ivendor/elekloader/elekloader/sdk/include dsp/dsp.c machines/digitakt/modeldigi.c tests/test_digitakt.c -o out/test_digitakt",
   "out/test_digitakt",
+  "cc -std=c99 -O2 -Wall -Wextra -Werror dsp/oscillator.c tests/test_oscillator.c -o out/test_oscillator",
+  "out/test_oscillator",
+]
+
+[tasks."build:renderer"]
+description = "Build the host renderer using the actual C oscillator engine"
+run = [
+  "mkdir -p out",
+  "cc -std=c99 -O2 -Wall -Wextra -Werror dsp/oscillator.c tools/render.c -lm -o out/render",
+]
+
+[tasks.render]
+description = "Render C oscillator audio: OUT.wav [seconds=3 freq1=440 wave1=3 ...]"
+depends = ["build:renderer"]
+run = 'out/render "$@"'
+
+[tasks."test:oscillators"]
+description = "Check frozen signed waveform targets and the declared static alias grid"
+depends = ["build:renderer"]
+run = [
+  'uv run --python "$(mise which python)" --with numpy==2.5.4 python -m unittest discover -s tests -p "test_oscillator_measurements.py"',
+  'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_oscillators.py "$@"',
+]
+
+[tasks."test:reference"]
+description = "Check C output against retained recording hashes and static waveforms"
+depends = ["build:renderer"]
+run = 'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_oscillators.py --reference-dir "${MODELDIGI_REFERENCE_DIR:?Set MODELDIGI_REFERENCE_DIR to retained reference evidence}" "$@"'
+
+[tasks."test:modulation"]
+description = "Check all frozen slow-modulation span and mean targets against the C engine"
+depends = ["build:renderer"]
+run = 'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_oscillators.py --modulation "$@"'
+
+[tasks."test:refinement"]
+description = "Double the same C engine's rate and compare all slow-modulation cases"
+depends = ["build:renderer"]
+run = [
+  "cc -std=c99 -O2 -Wall -Wextra -Werror -DMODELDIGI_OVERSAMPLE=16 dsp/oscillator.c tools/render.c -lm -o out/render-16",
+  'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_oscillators.py --modulation --out out/refinement-8',
+  'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_oscillators.py --modulation --factor 16 --renderer out/render-16 --out out/refinement-16 --compare out/refinement-8/validation.json',
 ]
 
 [tasks.firmware]
