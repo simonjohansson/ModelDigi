@@ -1,0 +1,1382 @@
+{
+  "version": 1,
+  "status": "frozen-observation-targets",
+  "reference": "REFERENCE",
+  "sample_rate_hz": 48000,
+  "qualification": "Normalized reference behavior; physical-unit, absolute internal-voltage, mixer, alias and device-cost qualification outstanding",
+  "source_manifests": [
+    {
+      "batch": "calibration-20261019T212600Z",
+      "sha256": "9c8cd5fb35d1a0db4313fb31ed58064164934b973c6e8901456519e59e983247",
+      "authority": "Immediate post-recording inventory baseline; established after completion and before calibration analysis",
+      "count": 62
+    },
+    {
+      "batch": "captures-20261019T190938Z",
+      "sha256": "36577cc439e556c7436c645272c5307392bde3cd9e6a6eccf908b7a8d5bd0abf",
+      "authority": "Post-review integrity baseline of retained files, not a capture-time attestation; no DSP targets frozen",
+      "count": 161
+    },
+    {
+      "batch": "captures-48000-20261019T183058Z",
+      "sha256": "0948d939522f4d86c2377e61de5faead1f08169b4d7183c6d1f8b4a45558f21c",
+      "authority": "Post-review integrity baseline of retained files, not a capture-time attestation; no DSP targets frozen",
+      "count": 79
+    },
+    {
+      "batch": "followup-20261019T191251Z",
+      "sha256": "4f2a97f0a5c1f47534acc1055ee1f7032e9ea3f0b07b3202e1ccbe2457d662c4",
+      "authority": "Post-review integrity baseline of retained files, not a capture-time attestation; no DSP targets frozen",
+      "count": 3
+    },
+    {
+      "batch": "lo-calibration-20261019T213019Z",
+      "sha256": "eb759328ada2264f11e6febeb579123f8e8aa8a0de54d9e8129d80a2869713ad",
+      "authority": "Immediate post-recording inventory baseline; established after completion and before calibration analysis",
+      "count": 5
+    },
+    {
+      "batch": "matched-20261019T192949Z",
+      "sha256": "a307b21db8c76938d24af2e6056b161818f5f29d6490c0d8497f12816907df94",
+      "authority": "Post-review integrity baseline of retained files, not a capture-time attestation; no DSP targets frozen",
+      "count": 104
+    }
+  ],
+  "analysis_sha256": "519a57804833c55991fe5e518638b902c2014d9dcf1befd6ef3bd957b22b10e5",
+  "extraction": {
+    "static": "1\u20132 seconds, channel 1; constant + cos/sin least squares at independently measured common frequency; complex coefficient (cos - i*sin)/2; divide each shape harmonic by same-harmonic saw coefficient at identical absolute time; no independent phase/gain/inversion fitting",
+    "modulation_shape_to_global": [
+      0,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "modulation_carrier_baseline_hz": 261.7635755297644,
+    "modulation_source_unmodulated_hz": {
+      "control_off": 0.5121426454971151,
+      "control_on": 2.0394793399812405
+    },
+    "depth_calibration": "Square control source 1st-to-99th percentile pitch difference / 1200, same amount; fitted observation in octave units, not a continuous wheel law",
+    "static_training_notes": [
+      60,
+      84
+    ],
+    "static_holdout_notes": [
+      72,
+      96,
+      108
+    ],
+    "harmonics": 8,
+    "modulation": "Carrier crossings after 16-sample smoothing; pitch interpolated to 1 kHz; mean frequency from cycle count over integer estimated source periods; time mean cents separately; no pitch centering",
+    "lo": "Carrier pitch trace at 100 Hz; Hann FFT padded >=64x, log-parabolic peak; independent normalized autocorrelation within 0.5%",
+    "quantities": "Harmonic ratios dimensionless complex [real,imag]; frequencies Hz; pitch cents; amount is recorded condition, not linear DSP depth"
+  },
+  "tolerances": {
+    "complex_ratio_absolute": 0.01,
+    "mixture_coefficient_absolute": 1e-05,
+    "pulse_duty_absolute": 0.002,
+    "tuning_ratio_cents": 1,
+    "lo_frequency_relative": 0.005,
+    "modulation_span_cents": 3,
+    "modulation_cents_of_mean_frequency": 2,
+    "modulation_time_mean_pitch_cents": 2,
+    "rationale": "Engineering acceptance limits, not statistical confidence intervals or manufacturer guarantees; do not auto-update from candidate output"
+  },
+  "phase_convention": "Phase 0 is decreasing-saw reset to positive peak; triangle positive peak there, trough at phase .5; small signed saw residue at reset; pulses high centered on phase 0. Absolute physical output polarity is not identified; convention anchored to factory decreasing ramp and common signed harmonic ratios.",
+  "choices": {
+    "audio_dc": "Zero cycle mean, separate from internal modulation offset",
+    "audio_square_level_difference": 2,
+    "saw_peak": 0.94775948,
+    "triangle_component_peak": 0.88925678,
+    "triangle_saw_residue": 0.0168924,
+    "triangle_trough_phase": 0.5,
+    "pulse_high_fractions": [
+      0.49,
+      0.31,
+      0.195
+    ],
+    "triangle_saw_coefficients": [
+      0.6362014,
+      0.1489326
+    ],
+    "modulation": "Pitch-control source has opposite sign to the chosen audio convention; normalized pulses 0..1 high during audio-low fraction. Triangle/saws retain separately fitted bias; latent physical volts are not claimed.",
+    "modulation_triangle_bias": 0.0261,
+    "modulation_saw_bias": -0.0061,
+    "modulation_reverse_saw_bias": -0.0035,
+    "modulation_depth": "DSP depth is octaves multiplying a unit pulse 0..1. Recorded amount is nonlinear; retain sampled conditions, no continuous wheel law is frozen.",
+    "normal_tune_cents": 700.5038,
+    "control_off_tune_cents": 3502.5,
+    "low_tuning": "CONTROL-off LO five-point frequency table; log-frequency interpolation is an explicit initial approximation, not an identified resistor transfer",
+    "drift": "None; no invented random detuning or coupling"
+  },
+  "audio_shapes": [
+    {
+      "shape": 0,
+      "harmonic_ratios_to_saw": [
+        [
+          0.016896255049853245,
+          1.19464581278754
+        ],
+        [
+          0.016893118658835533,
+          1.958954488531308e-06
+        ],
+        [
+          0.016894254347525207,
+          0.3982113197889735
+        ],
+        [
+          0.016892323074302572,
+          1.698255291223258e-06
+        ],
+        [
+          0.016888894297667396,
+          0.23892237941734162
+        ],
+        [
+          0.016893854497023186,
+          -2.128355537746395e-06
+        ],
+        [
+          0.016890628421063078,
+          0.1706608303926294
+        ],
+        [
+          0.016889831463298956,
+          -5.746137401230441e-07
+        ]
+      ],
+      "validation": [
+        {
+          "note": 60,
+          "source_sha256": "2e3913fd7058285599466c2864deca64ff4d8ce499a651d67ec5da659de7af9f",
+          "max_complex_error": 1.0047677594260929e-05
+        },
+        {
+          "note": 72,
+          "source_sha256": "9c1f004dcb77e1022cb48a0a320478b12890e317a5fb7e6f1cf39df0b5d8abf4",
+          "max_complex_error": 2.5378156233127875e-05
+        },
+        {
+          "note": 84,
+          "source_sha256": "fddc07a8e0752791ee15d3229b5a6d1b19785dd51e87925b7ba2827404a117bc",
+          "max_complex_error": 1.0047677594263827e-05
+        },
+        {
+          "note": 96,
+          "source_sha256": "282d1c4fa6853aa837b4605a6c324a40a29e3a2b8bc89ba15d88d1fc933b7b4a",
+          "max_complex_error": 2.9992915881729917e-05
+        },
+        {
+          "note": 108,
+          "source_sha256": "8a51c6145656f91fc311fcc4fedec7beb8bab46c1c71590a9c06d7326287134e",
+          "max_complex_error": 8.091600861737904e-06
+        }
+      ]
+    },
+    {
+      "shape": 1,
+      "harmonic_ratios_to_saw": [
+        [
+          0.15968199040580455,
+          0.760035416034331
+        ],
+        [
+          0.15968014487923954,
+          1.5467572331803438e-06
+        ],
+        [
+          0.15968082059492233,
+          0.2533424780199304
+        ],
+        [
+          0.15967946645871967,
+          1.3331979572322106e-06
+        ],
+        [
+          0.1596768389324128,
+          0.15200200697530686
+        ],
+        [
+          0.1596808848264387,
+          -1.8674287165450135e-06
+        ],
+        [
+          0.15967846000013497,
+          0.10857500680395732
+        ],
+        [
+          0.15967766445958345,
+          -3.2900439911334626e-07
+        ]
+      ],
+      "validation": [
+        {
+          "note": 60,
+          "source_sha256": "539a54da4acc969d69bb10d8e3fbb28c91de3b42e80ce6e64874016b709e1986",
+          "max_complex_error": 7.2109068810989e-06
+        },
+        {
+          "note": 72,
+          "source_sha256": "c6a35fe8522cc9e1996c659285c5138f4d7e259621e44dcda628848aaa93ac45",
+          "max_complex_error": 1.7297831841076202e-05
+        },
+        {
+          "note": 84,
+          "source_sha256": "d210b758492bd60d839f03f86e256d4dff4e3eb9daa5b50522e23e367d7dcfd0",
+          "max_complex_error": 7.210906881090981e-06
+        },
+        {
+          "note": 96,
+          "source_sha256": "583e6edc9efee6c72bfa23e3af0f0c758cdff776012570cdce35b939915eab09",
+          "max_complex_error": 2.0659239663148207e-05
+        },
+        {
+          "note": 108,
+          "source_sha256": "711ada60c741dff3abea91820afccfc221ee1cfdd396a05a79ab511d51172156",
+          "max_complex_error": 5.194639380541047e-06
+        }
+      ]
+    },
+    {
+      "shape": 2,
+      "harmonic_ratios_to_saw": [
+        [
+          -1.0000000232930835,
+          5.745096086882887e-07
+        ],
+        [
+          -0.9999985597045891,
+          2.8233046765422978e-06
+        ],
+        [
+          -0.9999990052256051,
+          -1.1718624288177525e-06
+        ],
+        [
+          -1.00000006959932,
+          2.1095309354153587e-06
+        ],
+        [
+          -1.0000044642721724,
+          -6.784024787738227e-06
+        ],
+        [
+          -0.9999958767616755,
+          -4.881911600946274e-06
+        ],
+        [
+          -0.9999996683820451,
+          3.3560709448094937e-06
+        ],
+        [
+          -1.0000024732010295,
+          3.737146077814553e-07
+        ]
+      ],
+      "validation": [
+        {
+          "note": 60,
+          "source_sha256": "ee7f9f5166ce0831ee6913b203a95b6e66f666cfc15bb36dba5603e280469258",
+          "max_complex_error": 1.0906988054102025e-05
+        },
+        {
+          "note": 72,
+          "source_sha256": "7c7e87f666c60c2ede70f3c76f546ed4e68783b1551d0a5bb75a3f8ae2920e6b",
+          "max_complex_error": 1.6310032178990824e-05
+        },
+        {
+          "note": 84,
+          "source_sha256": "4be2b0ed1c9e297332f6d85eec3a0158d85de4939a5a8368f70a4fcac7e4daea",
+          "max_complex_error": 1.0906988054054696e-05
+        },
+        {
+          "note": 96,
+          "source_sha256": "1cb91b1c12b164e3c34271414da055481c03ee94935fa7e07778ad847daaad8d",
+          "max_complex_error": 2.0853929562323852e-05
+        },
+        {
+          "note": 108,
+          "source_sha256": "b73dae3ea4e56b42fbffec7d14ad053fb4bd59f97c1412acd406573e5357ea66",
+          "max_complex_error": 6.49739744584455e-06
+        }
+      ]
+    },
+    {
+      "shape": 3,
+      "harmonic_ratios_to_saw": [
+        [
+          1.0,
+          3.7192691620088244e-18
+        ],
+        [
+          1.0,
+          1.890288139176654e-17
+        ],
+        [
+          1.0,
+          1.656776824351859e-17
+        ],
+        [
+          1.0,
+          5.210893244116165e-18
+        ],
+        [
+          1.0,
+          -8.107112409541888e-18
+        ],
+        [
+          1.0,
+          1.1470755854161188e-17
+        ],
+        [
+          1.0,
+          -4.288515232709567e-19
+        ],
+        [
+          1.0,
+          5.668055257711527e-18
+        ]
+      ],
+      "validation": [
+        {
+          "note": 60,
+          "source_sha256": "7197596fef4257679d13eb44be961b2c8c366d8c63dcb3bb9a0ae50a5d48baa3",
+          "max_complex_error": 1.1103903703633623e-16
+        },
+        {
+          "note": 72,
+          "source_sha256": "c7132e2470ea5edc1a8ab2ba4232ed1b98f7b2db4f6d1805e86dd83152b8bf01",
+          "max_complex_error": 1.134537370652662e-16
+        },
+        {
+          "note": 84,
+          "source_sha256": "8cc9784834320fa0b0e1f7832800632801db86d6d9d7151bb507beb97a8ee765",
+          "max_complex_error": 1.1297444320145073e-16
+        },
+        {
+          "note": 96,
+          "source_sha256": "eaa51d84a13a518086d2cc1908b87fb91dc3cfb3b6f8b9b1d2fba97d501d15f9",
+          "max_complex_error": 3.060478031123231e-17
+        },
+        {
+          "note": 108,
+          "source_sha256": "c88a2bea1271f2137945020e523190e3327c982c797a2e02d6c1a8eb0709b054",
+          "max_complex_error": 4.2215575169401107e-17
+        }
+      ]
+    },
+    {
+      "shape": 4,
+      "harmonic_ratios_to_saw": [
+        [
+          7.2658944758157196e-06,
+          2.1091963752319076
+        ],
+        [
+          -1.4274195664278155e-06,
+          0.13250423263514882
+        ],
+        [
+          -3.6935704633886603e-05,
+          -2.100854866276409
+        ],
+        [
+          -1.757883596013609e-05,
+          -0.2644880563134654
+        ],
+        [
+          3.511613855961585e-05,
+          2.0842098205817283
+        ],
+        [
+          -1.0704678191450897e-05,
+          0.39540785350854557
+        ],
+        [
+          -4.124387880105154e-06,
+          -2.0594106548221918
+        ],
+        [
+          -2.7683280148187396e-05,
+          -0.5248095263263179
+        ]
+      ],
+      "validation": [
+        {
+          "note": 60,
+          "source_sha256": "2065f3162d0cd11d08eb85491b284c827240ba0c342c665c3e5cde4edc386e78",
+          "max_complex_error": 9.364259203115375e-05
+        },
+        {
+          "note": 72,
+          "source_sha256": "2383023023264b552fe5ba340cc33d4cdd6ceb3f01cb29610bc60566522ce583",
+          "max_complex_error": 0.00026318688039328475
+        },
+        {
+          "note": 84,
+          "source_sha256": "bce2512c3865055aed828970e6029d8912924ffc299d764b09d1b085469c10ca",
+          "max_complex_error": 9.364259203120689e-05
+        },
+        {
+          "note": 96,
+          "source_sha256": "2cc9ead7a5513611e8d34921bcee23632bc7b45a0fef8422aa4b9ccd98f06b14",
+          "max_complex_error": 0.0002494039073285435
+        },
+        {
+          "note": 108,
+          "source_sha256": "13b6b69a408fdb475cc286f07079f88de10396a61b12b34a5e84a4ba2f3eeb34",
+          "max_complex_error": 0.00017008535324841988
+        }
+      ]
+    },
+    {
+      "shape": 5,
+      "harmonic_ratios_to_saw": [
+        [
+          9.397875197769234e-06,
+          1.745335154540299
+        ],
+        [
+          1.5557603726603564e-05,
+          1.9620529011951118
+        ],
+        [
+          1.2099388345249784e-05,
+          0.4603379152535883
+        ],
+        [
+          -1.1822384774633026e-05,
+          -1.444539702141665
+        ],
+        [
+          -3.384899855875572e-05,
+          -2.0842299106140887
+        ],
+        [
+          1.7827194817142335e-05,
+          -0.8984905843819465
+        ],
+        [
+          3.2945509483015344e-05,
+          1.0741921989211225
+        ],
+        [
+          0.00013754163916362077,
+          2.1060514882163557
+        ]
+      ],
+      "validation": [
+        {
+          "note": 60,
+          "source_sha256": "18519fce04aaba783cb33e91715027a5daf0345ed9f0b51a54c0ed25166af22a",
+          "max_complex_error": 9.552608771874442e-05
+        },
+        {
+          "note": 72,
+          "source_sha256": "be5b95f0a589a052448f73903853010b497428bf4966e512007403f66c2638b8",
+          "max_complex_error": 0.0001681782818675904
+        },
+        {
+          "note": 84,
+          "source_sha256": "386ca6ad3a3e894a60b9c989668c9febb8d9cd20ddd67369c45f2cbb1df2e043",
+          "max_complex_error": 9.552608771874442e-05
+        },
+        {
+          "note": 96,
+          "source_sha256": "3817e8154313506d05c36519fd496b05f64e38c2c7445e7c41ce6266a21a4410",
+          "max_complex_error": 0.00014713533231234058
+        },
+        {
+          "note": 108,
+          "source_sha256": "4d0993eddabcb6f7279018c5f7e7b2f6078a8b2a130373864ec464e399120a62",
+          "max_complex_error": 7.949808507222826e-05
+        }
+      ]
+    },
+    {
+      "shape": 6,
+      "harmonic_ratios_to_saw": [
+        [
+          6.165261009223203e-06,
+          1.2133964072559538
+        ],
+        [
+          1.3262078384325102e-05,
+          1.9854853654856448
+        ],
+        [
+          2.992011065074669e-05,
+          2.035429384777741
+        ],
+        [
+          2.6709036534146054e-05,
+          1.3451048995505652
+        ],
+        [
+          4.196353118914641e-07,
+          0.16557055973676604
+        ],
+        [
+          1.517268408995392e-05,
+          -1.0741978677044708
+        ],
+        [
+          -2.8616997244686923e-05,
+          -1.9232531211439279
+        ],
+        [
+          -8.571907240432434e-06,
+          -2.072835708886041
+        ]
+      ],
+      "validation": [
+        {
+          "note": 60,
+          "source_sha256": "8798168f0f83341d950c56580f45c79d57c3da7a1faa09ddb6d488f2bb213ccd",
+          "max_complex_error": 3.061669031821716e-05
+        },
+        {
+          "note": 72,
+          "source_sha256": "8a3134ec9bbbac6cf2435c00ee6f57ebee0aa3f51758f1bc6d8715c4da25f621",
+          "max_complex_error": 0.00028094735901515775
+        },
+        {
+          "note": 84,
+          "source_sha256": "3560a6361195b66295814a4e5a0714485c8d7770bca14156149450d42a5cfa5f",
+          "max_complex_error": 3.061669031821716e-05
+        },
+        {
+          "note": 96,
+          "source_sha256": "0f11f7bcb8210d98b687a059eac70fe11b7a1eb9f12f9bcfcfa5e99e2efe4f04",
+          "max_complex_error": 0.0001473367402190624
+        },
+        {
+          "note": 108,
+          "source_sha256": "95cc55cab70575c380b663c9195a06bda883e5ae9a9486d381e25690dd87e5be",
+          "max_complex_error": 8.286335629347049e-05
+        }
+      ]
+    }
+  ],
+  "mixture": [
+    {
+      "note": 24,
+      "triangle": 0.6362014399605479,
+      "saw": 0.14893251827722473,
+      "dc": 2.24524832635054e-09,
+      "residual_db": -90.78599170321645
+    },
+    {
+      "note": 36,
+      "triangle": 0.6362013033824914,
+      "saw": 0.14893263124017586,
+      "dc": 6.609504793193554e-09,
+      "residual_db": -90.81645197063273
+    },
+    {
+      "note": 48,
+      "triangle": 0.6362013926409673,
+      "saw": 0.14893270321553734,
+      "dc": 1.1294675335682698e-09,
+      "residual_db": -90.82043294754592
+    },
+    {
+      "note": 60,
+      "triangle": 0.6362014029537907,
+      "saw": 0.14893255914320813,
+      "dc": 4.304041435234794e-09,
+      "residual_db": -90.82179706849672
+    },
+    {
+      "note": 72,
+      "triangle": 0.6362014745861361,
+      "saw": 0.14893249168586806,
+      "dc": 2.590467666062764e-09,
+      "residual_db": -90.83709124525993
+    },
+    {
+      "note": 84,
+      "triangle": 0.6362015130451854,
+      "saw": 0.14893263842956017,
+      "dc": 3.6914593915508926e-10,
+      "residual_db": -90.87503439249572
+    },
+    {
+      "note": 96,
+      "triangle": 0.6362013897522377,
+      "saw": 0.14893257071639576,
+      "dc": 6.35319536323586e-09,
+      "residual_db": -91.00252112454199
+    },
+    {
+      "note": 108,
+      "triangle": 0.6362015298937949,
+      "saw": 0.14893246467736856,
+      "dc": 8.643396970878151e-10,
+      "residual_db": -91.2555538075133
+    }
+  ],
+  "modulation": [
+    {
+      "shape": 0,
+      "amount": 0.05,
+      "calibrated_depth_octaves": 0.0570000721519088,
+      "feedback": false,
+      "source_sha256": "78fb0520972701831313c6acde554547346265419f838d189f3bc8e57bcb09b3",
+      "modulation_hz": 0.5111337410131112,
+      "pitch_span_cents": 54.139285565857264,
+      "cents_of_mean_frequency": 1.8885952001484307,
+      "time_mean_pitch_cents": 1.8016910388820093,
+      "start_phase_sensitivity_cents": 0.10551638854419343
+    },
+    {
+      "shape": 0,
+      "amount": 0.1,
+      "calibrated_depth_octaves": 0.11330918114380102,
+      "feedback": false,
+      "source_sha256": "03c0c78dd21cf6c00a4a4b7f291ecd93a62f0bb19c0b627a330b5cd8ae5dee87",
+      "modulation_hz": 0.5118683412932465,
+      "pitch_span_cents": 108.24144867764515,
+      "cents_of_mean_frequency": 3.8954904728529813,
+      "time_mean_pitch_cents": 3.5479646011842694,
+      "start_phase_sensitivity_cents": 0.06170952770407245,
+      "feedback_cycle_integral": {
+        "predicted_cents_of_mean_frequency": 3.200408945141753,
+        "predicted_time_mean_pitch_cents": 2.8528596659814367,
+        "mean_error_cents": 0.022751945329627432,
+        "log_mean_error_cents": 0.02196534499218039
+      }
+    },
+    {
+      "shape": 0,
+      "amount": 0.25,
+      "calibrated_depth_octaves": 0.2821935837227073,
+      "feedback": false,
+      "source_sha256": "1cb4d632dff4664b632bdefa3b64151fa0d94bb7f8228e1b0d60e7eaa3bcdc0c",
+      "modulation_hz": 0.5121073655351783,
+      "pitch_span_cents": 270.67978296053946,
+      "cents_of_mean_frequency": 11.001948354574305,
+      "time_mean_pitch_cents": 8.83039547173259,
+      "start_phase_sensitivity_cents": 0.021543636518961407
+    },
+    {
+      "shape": 0,
+      "amount": 0.5,
+      "calibrated_depth_octaves": 0.44303697681008697,
+      "feedback": false,
+      "source_sha256": "db0530f27767491b02ec8c203bff1f4ba337af14b7402c3e77d8ba9db22f8dca",
+      "modulation_hz": 0.5121291296459702,
+      "pitch_span_cents": 425.4200400892132,
+      "cents_of_mean_frequency": 19.231372073327023,
+      "time_mean_pitch_cents": 13.870938144569047,
+      "start_phase_sensitivity_cents": 0.01451521063262362,
+      "feedback_cycle_integral": {
+        "predicted_cents_of_mean_frequency": 8.509709892279794,
+        "predicted_time_mean_pitch_cents": 3.1549901950674695,
+        "mean_error_cents": 0.015981101639983564,
+        "log_mean_error_cents": 0.0044613097264072366
+      }
+    },
+    {
+      "shape": 0,
+      "amount": 0.75,
+      "calibrated_depth_octaves": 0.7547848272716121,
+      "feedback": false,
+      "source_sha256": "f8a4de25d56e9effedd325812acad0d91b00eb27c1f650ec9136192ff8032869",
+      "modulation_hz": 0.5121390642476408,
+      "pitch_span_cents": 725.1377835648807,
+      "cents_of_mean_frequency": 39.196123119723794,
+      "time_mean_pitch_cents": 23.640020016865527,
+      "start_phase_sensitivity_cents": 0.009582912222661832
+    },
+    {
+      "shape": 0,
+      "amount": 1,
+      "calibrated_depth_octaves": 1.5089696067839369,
+      "feedback": false,
+      "source_sha256": "bae4c906286663fc86a0f929bb0cfe8df97f6a5fbec8f1b3f1db9a6a88328d44",
+      "modulation_hz": 0.512144678612138,
+      "pitch_span_cents": 1450.1175267949438,
+      "cents_of_mean_frequency": 109.17062635171612,
+      "time_mean_pitch_cents": 47.280029633304025,
+      "start_phase_sensitivity_cents": 0.002261538449616296
+    },
+    {
+      "shape": 1,
+      "amount": 0.05,
+      "calibrated_depth_octaves": 0.0570000721519088,
+      "feedback": false,
+      "source_sha256": "38a297ab07706b5d5ce144a36cba3859e1808de81b6a52f1bdf32a0ebeb2f61f",
+      "modulation_hz": 0.5121533540455324,
+      "pitch_span_cents": 57.51017283877417,
+      "cents_of_mean_frequency": -0.14712806804962364,
+      "time_mean_pitch_cents": -0.2443518140394717,
+      "start_phase_sensitivity_cents": 0.0008695696395084052
+    },
+    {
+      "shape": 1,
+      "amount": 0.1,
+      "calibrated_depth_octaves": 0.11330918114380102,
+      "feedback": false,
+      "source_sha256": "b78214a37030acc8b6cce09a5794161d4d25ef6642298e8ca8b1e390d157b321",
+      "modulation_hz": 0.5121628573587069,
+      "pitch_span_cents": 115.02920845513414,
+      "cents_of_mean_frequency": -0.09788339211385864,
+      "time_mean_pitch_cents": -0.4868600270163341,
+      "start_phase_sensitivity_cents": 0.0038895141385443394,
+      "feedback_cycle_integral": {
+        "predicted_cents_of_mean_frequency": -0.8789705306476018,
+        "predicted_time_mean_pitch_cents": -1.271096746085734,
+        "mean_error_cents": 0.18304381501739442,
+        "log_mean_error_cents": 0.16329340764445188
+      }
+    },
+    {
+      "shape": 1,
+      "amount": 0.25,
+      "calibrated_depth_octaves": 0.2821935837227073,
+      "feedback": false,
+      "source_sha256": "94149a6e4df023daa1cb2bbbe5e04e854aca347835dd465b2d86c3dc0b28c2e6",
+      "modulation_hz": 0.5121473112280301,
+      "pitch_span_cents": 287.50252022886,
+      "cents_of_mean_frequency": 1.2340812817728986,
+      "time_mean_pitch_cents": -1.1961824616455616,
+      "start_phase_sensitivity_cents": 0.001105016458420538
+    },
+    {
+      "shape": 1,
+      "amount": 0.5,
+      "calibrated_depth_octaves": 0.44303697681008697,
+      "feedback": false,
+      "source_sha256": "95421f704ce60df9ddff51621a851088c432f6550c5402aaef7da8d2106d295d",
+      "modulation_hz": 0.5121794134099728,
+      "pitch_span_cents": 451.8838971398254,
+      "cents_of_mean_frequency": 4.145795325938359,
+      "time_mean_pitch_cents": -1.8517559557424956,
+      "start_phase_sensitivity_cents": 0.02967620751745592,
+      "feedback_cycle_integral": {
+        "predicted_cents_of_mean_frequency": -7.900880872274974,
+        "predicted_time_mean_pitch_cents": -13.942443091595205,
+        "mean_error_cents": 0.8100373854245797,
+        "log_mean_error_cents": 0.5031729402457259
+      }
+    },
+    {
+      "shape": 1,
+      "amount": 0.75,
+      "calibrated_depth_octaves": 0.7547848272716121,
+      "feedback": false,
+      "source_sha256": "0c2cf56c4228829af2c7df1e748244a3f9dba42d97dcaa4d184c4a1ebc905327",
+      "modulation_hz": 0.512177657401183,
+      "pitch_span_cents": 770.1089330882262,
+      "cents_of_mean_frequency": 14.346134293238512,
+      "time_mean_pitch_cents": -3.053737284683902,
+      "start_phase_sensitivity_cents": 0.04838322757925795
+    },
+    {
+      "shape": 1,
+      "amount": 1,
+      "calibrated_depth_octaves": 1.5089696067839369,
+      "feedback": false,
+      "source_sha256": "9ca294282a9e9a5a365419e64a4cd516cad9364a0bdfacbe7bb32048ddddce77",
+      "modulation_hz": 0.512192787013504,
+      "pitch_span_cents": 1539.6704112486532,
+      "cents_of_mean_frequency": 63.53615627165932,
+      "time_mean_pitch_cents": -5.594196818928174,
+      "start_phase_sensitivity_cents": 0.14468078281651486
+    },
+    {
+      "shape": 2,
+      "amount": 0.05,
+      "calibrated_depth_octaves": 0.0570000721519088,
+      "feedback": false,
+      "source_sha256": "e8af935247b33e6a3b3cc1d4e999d27a0b456d7bef48d1371b48e562c3dfe267",
+      "modulation_hz": 0.5121328141515589,
+      "pitch_span_cents": 57.48226718637134,
+      "cents_of_mean_frequency": -0.3216239881557724,
+      "time_mean_pitch_cents": -0.41892521320377957,
+      "start_phase_sensitivity_cents": 0.0013868913467374178
+    },
+    {
+      "shape": 2,
+      "amount": 0.1,
+      "calibrated_depth_octaves": 0.11330918114380102,
+      "feedback": false,
+      "source_sha256": "aefd6612f62e6070f2cfbd85074dc478f19d8da4b2d07964906cff2d3f7a02cf",
+      "modulation_hz": 0.5121414075736003,
+      "pitch_span_cents": 114.9682424752656,
+      "cents_of_mean_frequency": -0.4462269103793251,
+      "time_mean_pitch_cents": -0.8354590702157876,
+      "start_phase_sensitivity_cents": 0.0008867142915784942,
+      "feedback_cycle_integral": {
+        "predicted_cents_of_mean_frequency": -1.2270844104117398,
+        "predicted_time_mean_pitch_cents": -1.618650959320737,
+        "mean_error_cents": -0.16554273504510153,
+        "log_mean_error_cents": -0.184583776758511
+      }
+    },
+    {
+      "shape": 2,
+      "amount": 0.25,
+      "calibrated_depth_octaves": 0.2821935837227073,
+      "feedback": false,
+      "source_sha256": "abba5b1f4c8dfddc0703bbbfa77ff17af8e5102f93a7b7bc3bd0429badb02723",
+      "modulation_hz": 0.5121815254997139,
+      "pitch_span_cents": 287.520034706627,
+      "cents_of_mean_frequency": 0.36572596233694354,
+      "time_mean_pitch_cents": -2.064980135653536,
+      "start_phase_sensitivity_cents": 0.01955176038116646
+    },
+    {
+      "shape": 2,
+      "amount": 0.5,
+      "calibrated_depth_octaves": 0.44303697681008697,
+      "feedback": false,
+      "source_sha256": "7fe5acdd02b7b2cc891e69610225c54accf6b3cb76d17f3e4a209e7206d9c708",
+      "modulation_hz": 0.512133739997177,
+      "pitch_span_cents": 451.7554959475308,
+      "cents_of_mean_frequency": 2.780267083001967,
+      "time_mean_pitch_cents": -3.221205740450155,
+      "start_phase_sensitivity_cents": 0.009838784720165084,
+      "feedback_cycle_integral": {
+        "predicted_cents_of_mean_frequency": -9.263705899864883,
+        "predicted_time_mean_pitch_cents": -15.296868914503293,
+        "mean_error_cents": -0.5656395517585651,
+        "log_mean_error_cents": -0.8650109940963162
+      }
+    },
+    {
+      "shape": 2,
+      "amount": 0.75,
+      "calibrated_depth_octaves": 0.7547848272716121,
+      "feedback": false,
+      "source_sha256": "9d54aad87a9bb4ed606ee4c672c0546a0a6fb7d86bb9bbb9d2da437dd2de741c",
+      "modulation_hz": 0.5121095157140183,
+      "pitch_span_cents": 770.0537086174348,
+      "cents_of_mean_frequency": 12.0205613779183,
+      "time_mean_pitch_cents": -5.3903008271145545,
+      "start_phase_sensitivity_cents": 0.05103955954432671
+    },
+    {
+      "shape": 2,
+      "amount": 1,
+      "calibrated_depth_octaves": 1.5089696067839369,
+      "feedback": false,
+      "source_sha256": "268f1876d37ffc750c9968b81bf6cd4aad6298d79e3662c96e70815dece640f0",
+      "modulation_hz": 0.5121101901213637,
+      "pitch_span_cents": 1539.6009829061227,
+      "cents_of_mean_frequency": 58.958805094753316,
+      "time_mean_pitch_cents": -10.2504201179811,
+      "start_phase_sensitivity_cents": 0.0971331917983349
+    },
+    {
+      "shape": 3,
+      "amount": 0.05,
+      "calibrated_depth_octaves": 0.0570000721519088,
+      "feedback": false,
+      "source_sha256": "1f8fed574a639f6642d2b2881f20e3e3ea50e413ae534ec1603b8f158616b0ee",
+      "modulation_hz": 0.5121410743637448,
+      "pitch_span_cents": 68.2410958135483,
+      "cents_of_mean_frequency": 34.7811103145891,
+      "time_mean_pitch_cents": 34.45484367851707,
+      "start_phase_sensitivity_cents": 0.0005965445050009066
+    },
+    {
+      "shape": 3,
+      "amount": 0.1,
+      "calibrated_depth_octaves": 0.11330918114380102,
+      "feedback": false,
+      "source_sha256": "198d9690299f8fd4090ab054698c47a6cd6480a961f8a5f22b7718775438c61a",
+      "modulation_hz": 0.5121789048451176,
+      "pitch_span_cents": 135.79795521966867,
+      "cents_of_mean_frequency": 70.2148161444847,
+      "time_mean_pitch_cents": 68.91007920616765,
+      "start_phase_sensitivity_cents": 0.008897788515483285,
+      "feedback_cycle_integral": {
+        "predicted_cents_of_mean_frequency": 67.59768373888599,
+        "predicted_time_mean_pitch_cents": 66.28519729133941,
+        "mean_error_cents": 0.0971019065515435,
+        "log_mean_error_cents": 0.05256342779894396
+      }
+    },
+    {
+      "shape": 3,
+      "amount": 0.25,
+      "calibrated_depth_octaves": 0.2821935837227073,
+      "feedback": false,
+      "source_sha256": "c0294c4c41c2e898834760cb69bd90664508cc10a9f9a03f10bd359494891809",
+      "modulation_hz": 0.5121777159876454,
+      "pitch_span_cents": 338.4772022607947,
+      "cents_of_mean_frequency": 180.4562577944582,
+      "time_mean_pitch_cents": 172.3154337194293,
+      "start_phase_sensitivity_cents": 0.021267796576012188
+    },
+    {
+      "shape": 3,
+      "amount": 0.5,
+      "calibrated_depth_octaves": 0.44303697681008697,
+      "feedback": false,
+      "source_sha256": "1453db86fd961a2ff7593f32e24495ff7092f07f296a8ac35e3e07270d0a8800",
+      "modulation_hz": 0.5121229459201563,
+      "pitch_span_cents": 531.5022754328509,
+      "cents_of_mean_frequency": 290.91234563863344,
+      "time_mean_pitch_cents": 270.8624553480614,
+      "start_phase_sensitivity_cents": 0.023047854268725132,
+      "feedback_cycle_integral": {
+        "predicted_cents_of_mean_frequency": 250.64190438949035,
+        "predicted_time_mean_pitch_cents": 230.5359881816855,
+        "mean_error_cents": 0.3935045653041982,
+        "log_mean_error_cents": -0.3012547051410479
+      }
+    },
+    {
+      "shape": 3,
+      "amount": 0.75,
+      "calibrated_depth_octaves": 0.7547848272716121,
+      "feedback": false,
+      "source_sha256": "9c4747347da3d08d2fa6ae15a8405436461e6a1f323074927f491416b86cc39f",
+      "modulation_hz": 0.5121469066255259,
+      "pitch_span_cents": 905.5594071339776,
+      "cents_of_mean_frequency": 519.6165319243954,
+      "time_mean_pitch_cents": 461.82155647698926,
+      "start_phase_sensitivity_cents": 0.002623601253048946
+    },
+    {
+      "shape": 3,
+      "amount": 1,
+      "calibrated_depth_octaves": 1.5089696067839369,
+      "feedback": false,
+      "source_sha256": "65e68910c1ef0ca37ea5387e4578dd988a01c7bdffb3ddcee4dd7fabe095a26a",
+      "modulation_hz": 0.5121227901478891,
+      "pitch_span_cents": 1810.485970115234,
+      "cents_of_mean_frequency": 1147.6426305096531,
+      "time_mean_pitch_cents": 924.1739479035485,
+      "start_phase_sensitivity_cents": 0.07266609282442005
+    },
+    {
+      "shape": 4,
+      "amount": 0.05,
+      "calibrated_depth_octaves": 0.0570000721519088,
+      "feedback": false,
+      "source_sha256": "25e4271edafc73cb0718deccc6d4d25b5704d8c94edd0e8c65a7791d0ac33d9a",
+      "modulation_hz": 0.5121678507980748,
+      "pitch_span_cents": 68.21678808047504,
+      "cents_of_mean_frequency": 46.90911170423867,
+      "time_mean_pitch_cents": 46.63086535549964,
+      "start_phase_sensitivity_cents": 0.002995763458415013
+    },
+    {
+      "shape": 4,
+      "amount": 0.1,
+      "calibrated_depth_octaves": 0.11330918114380102,
+      "feedback": false,
+      "source_sha256": "eb48204db255b4da689d0dd128981e6ef2985aaf65e7da449bea6d2ebe1d11e6",
+      "modulation_hz": 0.5121120072031004,
+      "pitch_span_cents": 135.772332419038,
+      "cents_of_mean_frequency": 94.3771492753963,
+      "time_mean_pitch_cents": 93.27308701596223,
+      "start_phase_sensitivity_cents": 0.008699055206207618,
+      "feedback_cycle_integral": {
+        "predicted_cents_of_mean_frequency": 92.14060561542344,
+        "predicted_time_mean_pitch_cents": 90.99732466606979,
+        "mean_error_cents": 0.0876619538130683,
+        "log_mean_error_cents": 0.043666759656431964
+      }
+    },
+    {
+      "shape": 4,
+      "amount": 0.25,
+      "calibrated_depth_octaves": 0.2821935837227073,
+      "feedback": false,
+      "source_sha256": "5d85d15b0b0a4677c3736114f9dbbb8fece36edc770dd75277afa8df89e28f40",
+      "modulation_hz": 0.5121652694835793,
+      "pitch_span_cents": 338.45416468310543,
+      "cents_of_mean_frequency": 240.00599784116352,
+      "time_mean_pitch_cents": 233.20985446163925,
+      "start_phase_sensitivity_cents": 0.012656514905955873
+    },
+    {
+      "shape": 4,
+      "amount": 0.5,
+      "calibrated_depth_octaves": 0.44303697681008697,
+      "feedback": false,
+      "source_sha256": "53c01e37638475cc2cfb6b738b13187ec24c412fa28c423b3b6d190e18797b59",
+      "modulation_hz": 0.5121187856015814,
+      "pitch_span_cents": 531.469877069458,
+      "cents_of_mean_frequency": 383.0638423755537,
+      "time_mean_pitch_cents": 366.53915314333744,
+      "start_phase_sensitivity_cents": 0.025882493870540202,
+      "feedback_cycle_integral": {
+        "predicted_cents_of_mean_frequency": 348.5949963209754,
+        "predicted_time_mean_pitch_cents": 330.0699077151892,
+        "mean_error_cents": 0.3734413485240111,
+        "log_mean_error_cents": -0.3425504629338434
+      }
+    },
+    {
+      "shape": 4,
+      "amount": 0.75,
+      "calibrated_depth_octaves": 0.7547848272716121,
+      "feedback": false,
+      "source_sha256": "931bf89541150cf3b41bdc5c990042b6957dc6e507c41716bb430c001c34bbdc",
+      "modulation_hz": 0.512172762882073,
+      "pitch_span_cents": 905.537214376263,
+      "cents_of_mean_frequency": 671.4165481255048,
+      "time_mean_pitch_cents": 624.8951935344938,
+      "start_phase_sensitivity_cents": 0.04315256156496616
+    },
+    {
+      "shape": 4,
+      "amount": 1,
+      "calibrated_depth_octaves": 1.5089696067839369,
+      "feedback": false,
+      "source_sha256": "20013b54e9d876d45091778d2d693d93f2375bc42ec8c93223d89048c1f7de8d",
+      "modulation_hz": 0.5121292260692446,
+      "pitch_span_cents": 1810.4836697545577,
+      "cents_of_mean_frequency": 1421.344391223352,
+      "time_mean_pitch_cents": 1250.281302075829,
+      "start_phase_sensitivity_cents": 0.04435265253096077
+    },
+    {
+      "shape": 5,
+      "amount": 0.05,
+      "calibrated_depth_octaves": 0.0570000721519088,
+      "feedback": false,
+      "source_sha256": "3628aa36c9b86d4979ddf821bf7bfa6767a8dc39f024b0f3e49418e4619e7345",
+      "modulation_hz": 0.5121426779164718,
+      "pitch_span_cents": 68.16493238017631,
+      "cents_of_mean_frequency": 54.598337777833706,
+      "time_mean_pitch_cents": 54.39622106795681,
+      "start_phase_sensitivity_cents": 0.00038222987785729856
+    },
+    {
+      "shape": 5,
+      "amount": 0.1,
+      "calibrated_depth_octaves": 0.11330918114380102,
+      "feedback": false,
+      "source_sha256": "e4706813cb514d630f9557ade42ffe72c41ec309acca6cc39f39da746f5f2b4a",
+      "modulation_hz": 0.5121423445214673,
+      "pitch_span_cents": 135.71818051308668,
+      "cents_of_mean_frequency": 109.59986044850929,
+      "time_mean_pitch_cents": 108.79774067086359,
+      "start_phase_sensitivity_cents": 0.0007926638547957054,
+      "feedback_cycle_integral": {
+        "predicted_cents_of_mean_frequency": 107.9630255911869,
+        "predicted_time_mean_pitch_cents": 107.11539878226887,
+        "mean_error_cents": 0.06829895987291934,
+        "log_mean_error_cents": 0.024297282216068083
+      }
+    },
+    {
+      "shape": 5,
+      "amount": 0.25,
+      "calibrated_depth_octaves": 0.2821935837227073,
+      "feedback": false,
+      "source_sha256": "24503d2a1affdaf5a0dd25eb99ee2590f11b4955a49ccedb7d0d85f65f550505",
+      "modulation_hz": 0.5121141282303612,
+      "pitch_span_cents": 338.3982171250609,
+      "cents_of_mean_frequency": 276.9330732924645,
+      "time_mean_pitch_cents": 272.03743812273984,
+      "start_phase_sensitivity_cents": 0.019418338741388652
+    },
+    {
+      "shape": 5,
+      "amount": 0.5,
+      "calibrated_depth_octaves": 0.44303697681008697,
+      "feedback": false,
+      "source_sha256": "8035505e32c8cd972fb560f5842491ac91ca2b189221a84079df17eaad27319a",
+      "modulation_hz": 0.5121187095538214,
+      "pitch_span_cents": 531.4136332487652,
+      "cents_of_mean_frequency": 439.3542202481962,
+      "time_mean_pitch_cents": 427.5383257286598,
+      "start_phase_sensitivity_cents": 0.025130850890832335,
+      "feedback_cycle_integral": {
+        "predicted_cents_of_mean_frequency": 414.07216318941323,
+        "predicted_time_mean_pitch_cents": 399.8152743727671,
+        "mean_error_cents": 0.24544941620405325,
+        "log_mean_error_cents": -0.4984516384744211
+      }
+    },
+    {
+      "shape": 5,
+      "amount": 0.75,
+      "calibrated_depth_octaves": 0.7547848272716121,
+      "feedback": false,
+      "source_sha256": "1bcfdbd89a00a1dd68143854dfac444668143347f6d9243b38b6da8e291d9e1d",
+      "modulation_hz": 0.5121316777432361,
+      "pitch_span_cents": 905.4849845652376,
+      "cents_of_mean_frequency": 761.7152413832911,
+      "time_mean_pitch_cents": 728.901977244781,
+      "start_phase_sensitivity_cents": 0.020511304004230624
+    },
+    {
+      "shape": 5,
+      "amount": 1,
+      "calibrated_depth_octaves": 1.5089696067839369,
+      "feedback": false,
+      "source_sha256": "75467df0d2a021fdf269bc4321f2525856a81d9bf75b468f3a3a31772acc9572",
+      "modulation_hz": 0.512138301080884,
+      "pitch_span_cents": 1810.4350163760137,
+      "cents_of_mean_frequency": 1575.713174383604,
+      "time_mean_pitch_cents": 1458.2999693973206,
+      "start_phase_sensitivity_cents": 0.01782917329933298
+    },
+    {
+      "shape": 0,
+      "amount": 0.1,
+      "calibrated_depth_octaves": 0.11330918114380102,
+      "feedback": true,
+      "source_sha256": "9a0742e22546a32d764fc735a825f13a6d5fe6fd9f70f93473c83c681db7ed56",
+      "modulation_hz": 2.044939623697971,
+      "pitch_span_cents": 108.11558099747191,
+      "cents_of_mean_frequency": 3.1776569998121253,
+      "time_mean_pitch_cents": 2.8308943209892563,
+      "start_phase_sensitivity_cents": 0.005836772642144439
+    },
+    {
+      "shape": 0,
+      "amount": 0.5,
+      "calibrated_depth_octaves": 0.44303697681008697,
+      "feedback": true,
+      "source_sha256": "02cb5fdd0d7545768a4f8a19cdd7ea43e2f21bcc2070cf892123401d9bf43d3d",
+      "modulation_hz": 2.051146912238394,
+      "pitch_span_cents": 423.91430477005775,
+      "cents_of_mean_frequency": 8.49372879063981,
+      "time_mean_pitch_cents": 3.1505288853410622,
+      "start_phase_sensitivity_cents": 0.005678718722409215
+    },
+    {
+      "shape": 1,
+      "amount": 0.1,
+      "calibrated_depth_octaves": 0.11330918114380102,
+      "feedback": true,
+      "source_sha256": "a7e24eb61e4cbb66486657a42c886236c2aa6b4c359bb814d22bf59bd6593345",
+      "modulation_hz": 2.040321597329471,
+      "pitch_span_cents": 113.73282296732897,
+      "cents_of_mean_frequency": -1.0620143456649962,
+      "time_mean_pitch_cents": -1.434390153730186,
+      "start_phase_sensitivity_cents": 0.027839664339846193
+    },
+    {
+      "shape": 1,
+      "amount": 0.5,
+      "calibrated_depth_octaves": 0.44303697681008697,
+      "feedback": true,
+      "source_sha256": "1bb8c239431d9d2bb7a0d5e807a720c9d4a9a932645f93a56a5388e5c549ebb1",
+      "modulation_hz": 2.0313607008003105,
+      "pitch_span_cents": 445.92344159715094,
+      "cents_of_mean_frequency": -8.710918257699554,
+      "time_mean_pitch_cents": -14.445616031840931,
+      "start_phase_sensitivity_cents": 0.11555975084312564
+    },
+    {
+      "shape": 2,
+      "amount": 0.1,
+      "calibrated_depth_octaves": 0.11330918114380102,
+      "feedback": true,
+      "source_sha256": "e99af579ad888a3fc673270442f14c0af600ae6c2b6d316e4a1ef1a55ae1e8e2",
+      "modulation_hz": 2.040325588439005,
+      "pitch_span_cents": 113.81250336790788,
+      "cents_of_mean_frequency": -1.0615416753666382,
+      "time_mean_pitch_cents": -1.434067182562226,
+      "start_phase_sensitivity_cents": 0.026927829656695934
+    },
+    {
+      "shape": 2,
+      "amount": 0.5,
+      "calibrated_depth_octaves": 0.44303697681008697,
+      "feedback": true,
+      "source_sha256": "c736fed4eb86bcd6b9594248780b8ed788e90dd8f8fce4cba9d2484e1fc6115c",
+      "modulation_hz": 2.0313718687527196,
+      "pitch_span_cents": 446.4641446544387,
+      "cents_of_mean_frequency": -8.698066348106318,
+      "time_mean_pitch_cents": -14.431857920406976,
+      "start_phase_sensitivity_cents": 0.11987051810013938
+    },
+    {
+      "shape": 3,
+      "amount": 0.1,
+      "calibrated_depth_octaves": 0.11330918114380102,
+      "feedback": true,
+      "source_sha256": "a074d9ed5cdd5fcd0f4970d4e46dccdc21dc7825c4af5c2a6e7ef1888aa21201",
+      "modulation_hz": 2.1227102105449713,
+      "pitch_span_cents": 135.7817530868189,
+      "cents_of_mean_frequency": 67.50058183233445,
+      "time_mean_pitch_cents": 66.23263386354047,
+      "start_phase_sensitivity_cents": 0.033804402713002446
+    },
+    {
+      "shape": 3,
+      "amount": 0.5,
+      "calibrated_depth_octaves": 0.44303697681008697,
+      "feedback": true,
+      "source_sha256": "8724dac449685e5593e224d1c38454d8d6d3153cdc28f2e95fa3b7f089388264",
+      "modulation_hz": 2.357432170969787,
+      "pitch_span_cents": 531.5078378324729,
+      "cents_of_mean_frequency": 250.24839982418615,
+      "time_mean_pitch_cents": 230.83724288682654,
+      "start_phase_sensitivity_cents": 0.10890755554635234
+    },
+    {
+      "shape": 4,
+      "amount": 0.1,
+      "calibrated_depth_octaves": 0.11330918114380102,
+      "feedback": true,
+      "source_sha256": "8f0c375a26787126973b40fe7a28c0fe26f7f0ac1a163ee9e57bba2c7e448896",
+      "modulation_hz": 2.1535277860440587,
+      "pitch_span_cents": 135.777230809754,
+      "cents_of_mean_frequency": 92.05294366161037,
+      "time_mean_pitch_cents": 90.95365790641335,
+      "start_phase_sensitivity_cents": 0.033221898223303015
+    },
+    {
+      "shape": 4,
+      "amount": 0.5,
+      "calibrated_depth_octaves": 0.44303697681008697,
+      "feedback": true,
+      "source_sha256": "eae62c6d50d577d161e7890e39199cc90ef5a0db2baa74cff149326386ece175",
+      "modulation_hz": 2.4948818317198085,
+      "pitch_span_cents": 531.4858129514628,
+      "cents_of_mean_frequency": 348.2215549724514,
+      "time_mean_pitch_cents": 330.412458178123,
+      "start_phase_sensitivity_cents": 0.11898607728403476
+    },
+    {
+      "shape": 5,
+      "amount": 0.1,
+      "calibrated_depth_octaves": 0.11330918114380102,
+      "feedback": true,
+      "source_sha256": "e7e60b15d9763a991873e4f4cc73008c82bc47d7b8a69e281690ae6625813c94",
+      "modulation_hz": 2.1736250321995687,
+      "pitch_span_cents": 135.73177674935786,
+      "cents_of_mean_frequency": 107.89472663131399,
+      "time_mean_pitch_cents": 107.0911015000528,
+      "start_phase_sensitivity_cents": 0.030488778439774933
+    },
+    {
+      "shape": 5,
+      "amount": 0.5,
+      "calibrated_depth_octaves": 0.44303697681008697,
+      "feedback": true,
+      "source_sha256": "832f5f96e13b6150bca069b61a678a4e9ad59ca9a8a773bce1b3eb27e6b6ad52",
+      "modulation_hz": 2.591130551352268,
+      "pitch_span_cents": 531.4426924139858,
+      "cents_of_mean_frequency": 413.8267137732092,
+      "time_mean_pitch_cents": 400.3137260112415,
+      "start_phase_sensitivity_cents": 0.11392673219592098
+    }
+  ],
+  "tuning": [
+    {
+      "control": false,
+      "amount": 0,
+      "frequency_hz": 8.659113382312592,
+      "source_sha256": "21927250145e515c4a723c6bc8b67425d37701703ab4f95ef6dab3cf94b4b0e2"
+    },
+    {
+      "control": false,
+      "amount": 0.25,
+      "frequency_hz": 23.810219265120878,
+      "source_sha256": "9b60fae9daa1e32865f757ec9c641ae7b6b9cdb2f04e8d1d2db650cdc6216245"
+    },
+    {
+      "control": false,
+      "amount": 0.5,
+      "frequency_hz": 65.47731875413965,
+      "source_sha256": "4703e4e5ac616a7f19b2279fa1b4633f5bd49675788cdbc0c395480cddbe7c26"
+    },
+    {
+      "control": false,
+      "amount": 0.75,
+      "frequency_hz": 180.05613663647262,
+      "source_sha256": "d686c42025eb604697b93cd3cf8d7b9b0755b49a6e3feb8c9658bb894f84fc5f"
+    },
+    {
+      "control": false,
+      "amount": 1,
+      "frequency_hz": 495.1375475181617,
+      "source_sha256": "8820dc4bcc99462fef2e8740d478ebd44eb87bbb89fe7b24a4cfef3bcab2c917"
+    },
+    {
+      "control": true,
+      "amount": 0,
+      "frequency_hz": 174.9266002616941,
+      "source_sha256": "e3cd49fe34c8d29876114f59e1c42071b973f62f8f7360d2a7c8fcb4a58def69"
+    },
+    {
+      "control": true,
+      "amount": 0.25,
+      "frequency_hz": 214.15092338062007,
+      "source_sha256": "d4867490840f305defb28ce19f638fe824d989f93f29aa2a57bd1e9e80033ac8"
+    },
+    {
+      "control": true,
+      "amount": 0.5,
+      "frequency_hz": 262.1701903495959,
+      "source_sha256": "58702c96521519a1845d03c5b0a1404eff7b317f3ccc0743c716a90ccb68855d"
+    },
+    {
+      "control": true,
+      "amount": 0.75,
+      "frequency_hz": 320.95683334202334,
+      "source_sha256": "d6eafcdd68a2fb82acab4d0cfc4b5837086ac0df2c5880d1fe5474fc48208426"
+    },
+    {
+      "control": true,
+      "amount": 1,
+      "frequency_hz": 392.9255711969208,
+      "source_sha256": "4b6b458734f7d3307c5985dcabfb0e6a21044a2931d4859ebe209451732ad58b"
+    }
+  ],
+  "lo_control_off": [
+    {
+      "amount": 0,
+      "frequency_hz": 0.06848798199898275,
+      "source_sha256": "612562f1502237fc0b3adcad664f4794b409ba08ddcfd0c584d9d0c6ebcaae26",
+      "period_correlation": 0.999599784581788
+    },
+    {
+      "amount": 0.25,
+      "frequency_hz": 0.18377005893618859,
+      "source_sha256": "6b3c91b3e070c99277b46c3704c56b5c1a319fbc623c4d175dc780df0e44b142",
+      "period_correlation": 0.9999926467456985
+    },
+    {
+      "amount": 0.5,
+      "frequency_hz": 0.5121456055387543,
+      "source_sha256": "cb8e3253dc0def5f142359dcb69e04d6ac8f7d5330539f41aaeb57ed36e4d320",
+      "period_correlation": 0.9999178032975597
+    },
+    {
+      "amount": 0.75,
+      "frequency_hz": 1.4017180385243244,
+      "source_sha256": "fd9e91bb5b3507e0a801f49dd31c7ca04a00063c1e33abf43951b68a4d064efe",
+      "period_correlation": 0.9999164736038381
+    },
+    {
+      "amount": 1,
+      "frequency_hz": 3.856087027613346,
+      "source_sha256": "80c6e668b91b08e7e5edee19e6eff9f5a4e6583869964ca4b6e3abe14f083f41",
+      "period_correlation": 0.9999552448285669
+    }
+  ],
+  "lo_control_on": {
+    "note": 60,
+    "frequency_hz": 2.0394793399812405,
+    "audio_8foot_frequency_hz": 262.1701903495959,
+    "source_sha256": "ec7876d3b8821d1177af4756a1fe9b5cfc0ce1b2ca10078f431bc708859dd910",
+    "meaning": "Use the within-mode LO/audio ratio; absolute oscillator tuning is observation-specific"
+  },
+  "excluded": [
+    "LO/core DC from audio",
+    "Cross-path absolute bank RMS/bands",
+    "Internal mixer transfer",
+    "96 kHz evidence",
+    "Absolute internal voltage/polarity",
+    "Continuous wheel law",
+    "Alias acceptance from these measurements"
+  ]
+}
