@@ -497,30 +497,6 @@ def alias_checks(renderer, folder, targets, factor):
     return results
 
 
-ALIAS_SLACK_DB = 1.0
-
-
-def alias_baseline(rows, factor):
-    """Measured alias residuals at a device rate, the floor its regression check holds."""
-    return dict(factor=factor, slack_db=ALIAS_SLACK_DB,
-                cases=[dict(frequency_hz=r["frequency_hz"], shape=r["shape"], residual_db=round(r["residual_db"], 3))
-                       for r in rows])
-
-
-def baseline_alias_checks(rows, baseline, factor):
-    """At a device rate the -60 dBc gate is replaced by: no case more than the slack above its baseline.
-    The DC limit is unchanged."""
-    if baseline["factor"] != factor:
-        raise ValueError("Alias baseline is for %dx, not %dx" % (baseline["factor"], factor))
-    floor = {(c["frequency_hz"], c["shape"]): c["residual_db"] for c in baseline["cases"]}
-    if set(floor) != {(r["frequency_hz"], r["shape"]) for r in rows}:
-        raise ValueError("Alias baseline covers different cases")
-    for r in rows:
-        r["baseline_db"] = floor[(r["frequency_hz"], r["shape"])]
-        r["passed"] = bool(r["residual_db"] <= r["baseline_db"] + baseline["slack_db"] and abs(r["dc"]) < 1e-6)
-    return rows
-
-
 def self_check():
     t = np.arange(48000) / 48000
     c = harmonics(.3 + .2*np.cos(2*np.pi*321.5*t) + .1*np.sin(4*np.pi*321.5*t), 321.5, 2)
@@ -537,8 +513,6 @@ def main():
     parser.add_argument("--modulation", action="store_true", help="Also run all frozen slow-modulation cases")
     parser.add_argument("--phase-sweep", action="store_true", help="Probe reverse-saw feedback at 33 carrier/source starts")
     parser.add_argument("--compare", type=Path, help="Compare slow-modulation summaries with a half-rate report")
-    parser.add_argument("--alias-baseline", type=Path, help="Device rate: hold alias residuals to this baseline instead of -60 dBc")
-    parser.add_argument("--write-alias-baseline", type=Path, help="Write this run's alias residuals as a baseline")
     args = parser.parse_args()
     self_check()
     targets = json.loads(TARGETS.read_text())
@@ -549,10 +523,6 @@ def main():
     args.out.mkdir(parents=True, exist_ok=True)
     static = static_checks(args.renderer.resolve(), args.out, targets, args.factor)
     alias = alias_checks(args.renderer.resolve(), args.out, targets, args.factor)
-    if args.write_alias_baseline:
-        args.write_alias_baseline.write_text(json.dumps(alias_baseline(alias, args.factor), indent=1) + "\n")
-    if args.alias_baseline:
-        alias = baseline_alias_checks(alias, json.loads(args.alias_baseline.read_text()), args.factor)
     frequencies = frequency_checks(args.renderer.resolve(), args.out, targets)
     local = local_checks(args.renderer.resolve(), args.out, targets, sources) if sources is not None else []
     derivation = []

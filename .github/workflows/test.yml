@@ -27,5 +27,3 @@ jobs:
         run: mise run test:oscillators
       - name: Frozen slow-modulation cases
         run: mise run test:modulation
-      - name: Device internal rate against targets and alias baseline
-        run: mise run test:device

@@ -26,17 +26,6 @@ class MeasurementTests(unittest.TestCase):
         self.assertEqual(checks.trace_lag(ramp, lead, 500), -20)
         self.assertEqual(checks.trace_lag(lead, ramp, 500), 20)
 
-    def test_device_alias_baseline_holds_regressions(self):
-        rows = [dict(frequency_hz=375, shape=0, residual_db=-70., dc=0.), dict(frequency_hz=16000, shape=6, residual_db=-56., dc=0.)]
-        baseline = checks.alias_baseline(rows, 4)
-        later = [dict(r) for r in rows]
-        later[1]["residual_db"] = -55.5
-        self.assertTrue(all(r["passed"] for r in checks.baseline_alias_checks(later, baseline, 4)))
-        later[1]["residual_db"] = -54.5
-        self.assertFalse(checks.baseline_alias_checks(later, baseline, 4)[1]["passed"])
-        with self.assertRaises(ValueError): checks.baseline_alias_checks(later, baseline, 2)
-        with self.assertRaises(ValueError): checks.baseline_alias_checks(later[:1], baseline, 4)
-
     def test_time_weighted_quantiles_and_observed_cycle_boundaries(self):
         self.assertLess(max(abs(checks.time_quantiles([0, 1], [100, 200], [.05, .95]) - [105, 195])), 1e-10)
         self.assertLess(max(abs(checks.time_quantiles([0, 1, 10], [100, 100, 100], [.05, .95]) - 100)), 1e-10)
