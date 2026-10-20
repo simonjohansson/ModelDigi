@@ -27,7 +27,7 @@ the SDK's hash verification and reject unknown firmware.
 | `mise run build` | Builds Core, machine-pages and ModelDigi for every local Digitakt OS; lints the machine with its dependencies. Artifacts go into `out/os<OS>/`. |
 | `mise run firmware` | Builds and patches the selected stock OS into `out/Digitakt_ModelDigi.syx`. No device transfer. |
 | `mise run emu` | Builds firmware, prepares it in digiemu and opens its panel. Emulator data stays in `.digiemu/`. |
-| `mise run test` | Checks C oscillator state, splitting, bounds and routing, plus silent device output and Digitakt track isolation. |
+| `mise run test` | Checks C oscillator state, splitting, bounds and routing, plus Digitakt control decoding, value text, page layout, silent output and track isolation. |
 
 The first three tasks dispatch to Digitakt and Digitone. Every Digitone
 subtask is a successful placeholder with no artifact or panel. Direct

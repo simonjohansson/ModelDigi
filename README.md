@@ -2,7 +2,8 @@
 
 A future Minimoog Model D clone for Elektron machines. The shared C oscillator
 bank runs in a host renderer against frozen reference targets. Device firmware
-remains a buildable, silent scaffold; device controls and integration come later.
+has the machine and its two control pages; its audio stays silent until the
+oscillator bank is device-ready.
 
 The layout follows OB-1:
 
@@ -36,9 +37,10 @@ Supply stock Digitakt mk1 OS 1.53 or 1.54 in `firmware/`, named
 task selects OS 1.54 by default and writes `out/Digitakt_ModelDigi.syx` with
 the four-character version `MDIG`. It builds a file only.
 
-The Digitakt scaffold registers **ModelDigi** with experimental machine ID
-121 and a blank SRC page. Selecting it produces silence. Other tracks retain
-their audio. In the emulator, use FUNC+SRC to choose the machine.
+The Digitakt build registers **ModelDigi** as machine 42, with two SRC pages
+(press SRC to flip between OSC and MIX). Selecting it still produces silence.
+Other tracks retain their audio. In the emulator, use FUNC+SRC to choose the
+machine.
 
 Unqualified build, firmware and emu tasks dispatch to both device targets.
 Digitone tasks currently print a placeholder message and return success;
