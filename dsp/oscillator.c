@@ -406,21 +406,34 @@ static void run_voice(struct modeldigi_osc_voice *o, const voice_lines *d, uint6
     finish(o, &r);
 }
 
-/* a * d / 2^16 for a < 2^16. */
-HOT int32_t mulq16(uint32_t a, int32_t d)
-{
-    return (d >> 16) * (int32_t)a + (int32_t)((((uint32_t)d & 0xffff) * a) >> 16);
-}
+/* ColdFire builds run the allpass sections on the EMAC, which the render enters in fractional,
+ * truncating, unsaturated mode; every ColdFire the engine targets has one. */
+#if defined(__mcoldfire__) && !defined(MODELDIGI_NO_EMAC)
+#define EMAC 1
+#define EMAC_MODE 0x20u   /* MACSR: fractional (F/I), truncate, no saturation */
+#else
+#define EMAC 0
+#endif
 
-/* One branch: cascaded y = a (x - y') + x' sections; s[i] is section i's previous input and s[i + 1]
- * its previous output. */
+/* One branch: cascaded y = a (x - y') + x' sections, each s + floor(a (x - y') / 2^16); s[i] is
+ * section i's previous input and s[i + 1] its previous output. The EMAC's fractional a 2^15 (x - y')
+ * keeps the product's upper bits and truncates the rest, the same floor. */
 HOT int32_t branch(int32_t *s, const uint16_t *a, unsigned first, unsigned count, int32_t x)
 {
     unsigned k = 0;
+#pragma GCC unroll 8
     for (unsigned i = first; i < count; i += 2, ++k) {
-        int32_t y = mulq16(a[i], x - s[k + 1]) + s[k];
+#if EMAC
+        __asm__ volatile ("move.l %0,%%acc0\n\tmac.l %1,%2,%%acc0"
+                          : : "r"(s[k]), "r"((int32_t)a[i] << 15), "r"(x - s[k + 1]));
+        s[k] = x;   /* between the MAC and its result, which is not ready the next cycle */
+        __asm__ volatile ("movclr.l %%acc0,%0" : "=d"(x));
+#else
+        int32_t d = x - s[k + 1];
+        int32_t y = (d >> 16) * (int32_t)a[i] + (int32_t)((((uint32_t)d & 0xffff) * a[i]) >> 16) + s[k];
         s[k] = x;
         x = y;
+#endif
     }
     s[k] = x;
     return x;
@@ -465,6 +478,11 @@ void modeldigi_osc_render(modeldigi_osc_state *s, const modeldigi_osc_params *p,
                          int32_t *output, size_t frames)
 {
     if (!frames) return;
+#if EMAC
+    /* The firmware's render uses the EMAC too: keep its MACSR. */
+    uint32_t macsr;
+    __asm__ volatile ("move.l %%macsr,%0\n\tmove.l %1,%%macsr" : "=&d"(macsr) : "d"(EMAC_MODE));
+#endif
     voice_lines lines[3], control;
     uint64_t step[3];
     int fresh[3];
@@ -544,4 +562,7 @@ void modeldigi_osc_render(modeldigi_osc_state *s, const modeldigi_osc_params *p,
             output[done + i] = mix[i];
         done += n;
     }
+#if EMAC
+    __asm__ volatile ("move.l %0,%%macsr" : : "d"(macsr));
+#endif
 }
