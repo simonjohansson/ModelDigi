@@ -15,6 +15,7 @@ ELEKLOADER_STOCK = "{{config_root}}/firmware/Digitakt_OS1.54.syx"
 ELEKLOADER_CROSS = "m68k-elf-"
 DIGIEMU_HOME = "{{config_root}}/.digiemu"
 FW_VERSION = "MDIG" # Firmware version field is four characters.
+MODELDIGI_DEVICE_OVERSAMPLE = "4" # Provisional device internal rate; CI and the firmware build follow it.
 
 [tasks.bootstrap]
 description = "Fetch submodules and prepare the emulator"
@@ -79,6 +80,18 @@ run = [
   "mkdir -p out",
   "cc -std=c99 -O2 -Wall -Wextra -Werror dsp/oscillator.c tools/render.c -lm -o out/render",
 ]
+
+[tasks."build:renderer-device"]
+description = "Build the host renderer at the device internal rate"
+run = [
+  "mkdir -p out",
+  'cc -std=c99 -O2 -Wall -Wextra -Werror -DMODELDIGI_OVERSAMPLE="$MODELDIGI_DEVICE_OVERSAMPLE" dsp/oscillator.c tools/render.c -lm -o out/render-device',
+]
+
+[tasks."test:device"]
+description = "Check the device rate against the frozen targets and its alias baseline"
+depends = ["build:renderer-device"]
+run = 'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_oscillators.py --modulation --factor "$MODELDIGI_DEVICE_OVERSAMPLE" --renderer out/render-device --out out/device --alias-baseline tests/reference/device-alias-baseline.json "$@"'
 
 [tasks.render]
 description = "Render C oscillator audio: OUT.wav [seconds=3 freq1=440 wave1=3 ...]"
