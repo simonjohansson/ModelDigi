@@ -6,13 +6,13 @@ Keep code comments and README files free of issue references. Commit messages ma
 
 ## Project orientation
 
-ModelDigi is a future Minimoog Model D clone. Its shared C oscillator bank runs in a host renderer; the Digitakt mk1 adapter remains silent pending later integration. Digitone is a scaffold whose placeholder tasks succeed without producing a working port. Do not add other synthesis sections, controls or extra workflows unless requested.
+ModelDigi is a future Minimoog Model D clone. Its shared C oscillator bank runs in a host renderer; the Digitakt mk1 machine has its approved controls but stays silent until the bank is device-ready. Digitone is a scaffold whose placeholder tasks succeed without producing a working port. Do not add other synthesis sections, controls or extra workflows unless requested.
 
 Read [Architecture](docs/architecture.md) for integration boundaries and [Development and verification](docs/development.md) for setup, commands and checks. Before implementing Model D behavior, establish manufacturer sources and document numeric constraints and confidence separately from measurements.
 
 - Manage language runtimes with mise. `mise run test` runs host DSP checks without stock firmware or the cross-toolchain; it does not verify device integration, persistence, CPU headroom or analog fidelity.
-- The Digitakt scaffold uses experimental machine ID 121. Assign a permanent ID before publishing sounds; changes to published IDs or saved parameter meanings need explicit authorization.
-- Keep the device adapter silent until integration is requested. Preserve oscillator headroom and level matching checks. Keep printed specifications, circuit assumptions, model choices and hardware measurements distinct.
+- The Digitakt machine uses permanent machine ID 10 and the approved two-page control meanings. Changes to the ID or saved parameter meanings need explicit authorization.
+- Keep the device audio silent until the device-ready engine is integrated and its cost measured. Preserve oscillator headroom and level matching checks. Keep printed specifications, circuit assumptions, model choices and hardware measurements distinct.
 - Stock firmware and raw research remain local and ignored. Keep device-specific firmware assumptions out of the shared sound engine and leave dependency submodules unchanged unless the task requires them.
 
 ## GitHub issues

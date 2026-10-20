@@ -1,17 +1,17 @@
 {
  "id": "modeldigi",
- "version": "0.1",
+ "version": "0.2",
  "title": "ModelDigi",
  "author": "simonjohansson",
  "category": "Machines",
  "license": "GPL-2.0-or-later",
- "description": "Silent scaffold for a future Minimoog Model D clone. No synthesis or controls yet. Experimental machine ID 121.",
+ "description": "Minimoog Model D oscillator controls on two SRC pages (machine 10). Sound is silent until the device-ready oscillator engine lands.",
  "device": "digitakt-mk1",
  "os": "1.53",
  "ports": {"1.54": {}},
- "sources": ["modeldigi.c", "../../dsp/dsp.c"],
- "machines": [{"id": 121, "descriptor": "modeldigi_machine"}],
+ "sources": ["modeldigi.c", "controls.c", "../../dsp/dsp.c"],
+ "machines": [{"id": 10, "descriptor": "modeldigi_machine"}],
  "subscribe": [{"event": "ev_render_voices", "fn": "modeldigi_digitakt_render", "order": 20}],
  "requires": ["core", "machine-pages"],
- "resources": {"core": "3.0", "names": ["machine:121"]}
+ "resources": {"core": "3.0", "names": ["machine:10"]}
 }

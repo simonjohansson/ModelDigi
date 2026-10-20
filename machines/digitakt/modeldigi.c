@@ -1,27 +1,90 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "digitakt-mk1/core3.h"
 #include "../../dsp/dsp.h"
+#include "controls.h"
 
-/* shortcut: experimental ID, allocate a permanent ID before publishing sounds. */
-#define MODELDIGI_ID 121
+#define MODELDIGI_ID 10
+/* SLICE's BR knob: a plain dial that steps one unit a detent. TUNE's and LEV's turns step in fractions
+ * and PLAY's graphic shows play modes, so every value borrows BR's (checked in the emulator). */
+#define LOOK_BR      0x86
 
 void modeldigi_digitakt_render(int32_t *blocks)
 {
+    /* shortcut: silent until the oscillator engine is device-ready (no 64-bit helpers, measured cost). */
     for (int track = 0; track < 8; track++)
         if (fw_render_machine[track] == MODELDIGI_ID)
             modeldigi_render(&blocks[32 * track]);
 }
 
-static const struct cm_ui modeldigi_page = {
-    .abi = cm_ui_v3,
-    .page_from = 3,
-    .group = "ModelDigi",
-    .knob = {
-        { .flags = CM_HIDDEN }, { .flags = CM_HIDDEN },
-        { .flags = CM_HIDDEN }, { .flags = CM_HIDDEN },
-        { .flags = CM_HIDDEN }, { .flags = CM_HIDDEN },
-        { .flags = CM_HIDDEN }, { .flags = CM_HIDDEN },
+/* Oscillator 3's CONTROL on the active track's sound (slot 47), for FRQ3's wide text. */
+static int osc3_free(void)
+{
+    const uint8_t *sound = fw_kit ? FW_SOUND(fw_kit, fw_active_track) : 0;
+    return sound && (int16_t)(sound[0x14 + 2 * 47] << 8 | sound[0x15 + 2 * 47]) < (64 << 8);
+}
+
+#define TEXT(fn, kind) \
+    static int32_t fn(char *buf, int32_t value, int32_t ctx, int32_t machine) \
+    { (void)machine; return modeldigi_text(kind, value, ctx, buf); }
+TEXT(range_text, MD_TEXT_RANGE)
+TEXT(wave12_text, MD_TEXT_WAVE12)
+TEXT(wave3_text, MD_TEXT_WAVE3)
+TEXT(frq2_text, MD_TEXT_FRQ)
+TEXT(tune_text, MD_TEXT_TUNE)
+TEXT(switch_text, MD_TEXT_SWITCH)
+TEXT(depth_text, MD_TEXT_DEPTH)
+
+/* A six-position selector's dial, spread over BR's 0-127. */
+static int32_t selector_gfx(int32_t value)
+{
+    return value * 127 / 5;
+}
+
+static int32_t frq3_text(char *buf, int32_t value, int32_t ctx, int32_t machine)
+{
+    (void)machine;
+    return modeldigi_text(osc3_free() ? MD_TEXT_FRQ_WIDE : MD_TEXT_FRQ, value, ctx, buf);
+}
+
+#define KNOB(label, long_name, max_, def_, flags_, fmt_) \
+    { .name = label, .lname = long_name, .look = LOOK_BR, .flags = CM_RANGE | CM_DEFAULT | (flags_), \
+      .min = 0, .max = (max_) << 8, .def = (def_) << 8, .fmt = fmt_ }
+#define SELECTOR(label, long_name, def_, fmt_) \
+    { .name = label, .lname = long_name, .look = LOOK_BR, .flags = CM_RANGE | CM_DEFAULT, \
+      .min = 0, .max = 5 << 8, .def = (def_) << 8, .fmt = fmt_, .gfx = selector_gfx }
+
+static const struct cm_src_page pages[] = {
+    { .title = "OSC 1/2", .parameter = { MD_RNG1, MD_WAV1, MD_RNG2, MD_FRQ2, MD_WAV2, MD_RNG3, MD_FRQ3, MD_WAV3 } },
+    { .title = "MIX 2/2", .parameter = { MD_TUNE, MD_CTRL, MD_MOD, MD_DPTH, MD_LEV1, MD_LEV2, MD_LEV3, CM_SRC_BLANK } },
+};
+
+static const struct cm_ui32 modeldigi_page = {
+    .base = {
+        .abi = cm_ui_v32,
+        .page_from = 3,
+        .group = "ModelDigi",
+        .knob = {
+            SELECTOR("RNG1", "Osc 1 Range", 3, range_text),
+            SELECTOR("WAV1", "Osc 1 Wave", 2, wave12_text),
+            SELECTOR("RNG2", "Osc 2 Range", 3, range_text),
+            KNOB("FRQ2", "Osc 2 Frequency", 127, 64, CM_NOT_SAMPLE, frq2_text),
+            SELECTOR("WAV2", "Osc 2 Wave", 2, wave12_text),
+            SELECTOR("RNG3", "Osc 3 Range", 3, range_text),
+            KNOB("FRQ3", "Osc 3 Frequency", 127, 64, 0, frq3_text),
+            SELECTOR("WAV3", "Osc 3 Wave", 2, wave3_text),
+        },
     },
+    .extra = {
+        KNOB("TUNE", "Tune", 127, 64, 0, tune_text),
+        KNOB("CTRL", "Osc 3 Control", 127, 127, 0, switch_text),
+        KNOB("MOD", "Modulation", 127, 0, 0, switch_text),
+        KNOB("DPTH", "Mod Depth", 127, 0, 0, depth_text),
+        KNOB("LEV1", "Osc 1 Level", 127, 127, 0, 0),
+        KNOB("LEV2", "Osc 2 Level", 127, 0, 0, 0),
+        KNOB("LEV3", "Osc 3 Level", 127, 0, 0, 0),
+    },
+    .page_count = 2,
+    .pages = pages,
 };
 
 const struct cm_machine modeldigi_machine = {
@@ -31,5 +94,5 @@ const struct cm_machine modeldigi_machine = {
     .params = 3,
     .render = MODELDIGI_ID,
     .tag = CM_UI_TAG,
-    .ui = &modeldigi_page,
+    .ui = &modeldigi_page.base,
 };

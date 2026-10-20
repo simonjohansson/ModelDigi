@@ -67,7 +67,7 @@ run = [
   "mkdir -p out",
   "cc -std=c99 -O2 -Wall -Wextra -Werror dsp/dsp.c tests/test_dsp.c -o out/test_dsp",
   "out/test_dsp",
-  "cc -std=c99 -O2 -Wall -Wextra -Werror -Ivendor/elekloader/elekloader/sdk/include dsp/dsp.c machines/digitakt/modeldigi.c tests/test_digitakt.c -o out/test_digitakt",
+  "cc -std=c99 -O2 -Wall -Wextra -Werror -Ivendor/elekloader/elekloader/sdk/include dsp/dsp.c machines/digitakt/modeldigi.c machines/digitakt/controls.c tests/test_digitakt.c -lm -o out/test_digitakt",
   "out/test_digitakt",
   "cc -std=c99 -O2 -Wall -Wextra -Werror dsp/oscillator.c tests/test_oscillator.c -o out/test_oscillator",
   "out/test_oscillator",
