@@ -62,7 +62,7 @@ static void descriptor(void)
         { MD_TUNE, MD_CTRL, MD_MOD, MD_DPTH, MD_LEV1, MD_LEV2, MD_LEV3, CM_SRC_BLANK },
     };
     static const int16_t def[MD_VALUES] = { 3, 2, 3, 64, 2, 3, 64, 2, 64, 127, 0, 0, 127, 0, 0 };
-    assert(modeldigi_machine.id == 10 && modeldigi_machine.render == 10 && modeldigi_machine.params == 3);
+    assert(modeldigi_machine.id == 42 && modeldigi_machine.render == 42 && modeldigi_machine.params == 3);
     assert(page()->base.abi == cm_ui_v32 && page()->base.page_from == 3 && page()->page_count == 2);
     for (int p = 0; p < 2; ++p) {
         assert(!memcmp(page()->pages[p].parameter, shown[p], 8));
@@ -187,9 +187,9 @@ static void text(void)
     fw_active_track = 2;
     uint8_t *control = FW_SOUND(kit, 2) + 0x14 + 2 * 47;
     control[0] = 127;
-    assert(frq3->fmt(buf, 127 << 8, 0, 10) && !strcmp(buf, "+700"));
+    assert(frq3->fmt(buf, 127 << 8, 0, 42) && !strcmp(buf, "+700"));
     control[0] = 0;
-    assert(frq3->fmt(buf, 127 << 8, 0, 10) && !strcmp(buf, "+3500"));
+    assert(frq3->fmt(buf, 127 << 8, 0, 42) && !strcmp(buf, "+3500"));
     fw_kit = 0;
 }
 

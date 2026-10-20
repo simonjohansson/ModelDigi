@@ -3,7 +3,7 @@
 #include "../../dsp/dsp.h"
 #include "controls.h"
 
-#define MODELDIGI_ID 10
+#define MODELDIGI_ID 42
 /* SLICE's BR knob: a plain dial that steps one unit a detent. TUNE's and LEV's turns step in fractions
  * and PLAY's graphic shows play modes, so every value borrows BR's (checked in the emulator). */
 #define LOOK_BR      0x86

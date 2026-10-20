@@ -37,7 +37,7 @@ Supply stock Digitakt mk1 OS 1.53 or 1.54 in `firmware/`, named
 task selects OS 1.54 by default and writes `out/Digitakt_ModelDigi.syx` with
 the four-character version `MDIG`. It builds a file only.
 
-The Digitakt build registers **ModelDigi** as machine 10, with two SRC pages
+The Digitakt build registers **ModelDigi** as machine 42, with two SRC pages
 (press SRC to flip between OSC and MIX). Selecting it still produces silence.
 Other tracks retain their audio. In the emulator, use FUNC+SRC to choose the
 machine.

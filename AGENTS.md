@@ -11,7 +11,7 @@ ModelDigi is a future Minimoog Model D clone. Its shared C oscillator bank runs 
 Read [Architecture](docs/architecture.md) for integration boundaries and [Development and verification](docs/development.md) for setup, commands and checks. Before implementing Model D behavior, establish manufacturer sources and document numeric constraints and confidence separately from measurements.
 
 - Manage language runtimes with mise. `mise run test` runs host DSP checks without stock firmware or the cross-toolchain; it does not verify device integration, persistence, CPU headroom or analog fidelity.
-- The Digitakt machine uses permanent machine ID 10 and the approved two-page control meanings. Changes to the ID or saved parameter meanings need explicit authorization.
+- The Digitakt machine uses permanent machine ID 42 and the approved two-page control meanings. Changes to the ID or saved parameter meanings need explicit authorization.
 - Keep the device audio silent until the device-ready engine is integrated and its cost measured. Preserve oscillator headroom and level matching checks. Keep printed specifications, circuit assumptions, model choices and hardware measurements distinct.
 - Stock firmware and raw research remain local and ignored. Keep device-specific firmware assumptions out of the shared sound engine and leave dependency submodules unchanged unless the task requires them.
 

@@ -21,7 +21,7 @@ must remain bounded and must not allocate, perform I/O or wait.
 
 ## Digitakt controls
 
-The machine uses permanent ID 10 on SLICE's parameter bank and fills its own
+The machine uses permanent ID 42 on SLICE's parameter bank and fills its own
 voice window. Its fifteen values use exactly the slots the machine-pages
 companion provides, and each page is stored where it is shown:
 
