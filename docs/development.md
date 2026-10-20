@@ -78,8 +78,11 @@ two realistic instances before choosing or optimizing a device rate.
 The modulation task adds all 48 frozen slow-modulation cases, preserving span,
 cents of mean frequency and time-averaged cents. Each case renders its
 recording's duration, analyses the same window, and starts oscillator 3 at the
-phase observed in that recording. The phase table is committed beside the
-frozen targets, not inside them. Feedback phases depend on the engine's
+phase observed in that recording. That phase aligns the first two modulation
+periods only. The same lag over the last two periods is recorded as timing
+drift, carried into each modulation result and summarized in the output; it is
+reported, not corrected, and is not an acceptance target. The phase table is
+committed beside the frozen targets, not inside them. Feedback phases depend on the engine's
 behavior during the one-second lead-in, and portable checks cannot detect a
 stale table; after any change to the modulation path, run the local recording
 comparison below with `--modulation`. Refinement doubles the entire

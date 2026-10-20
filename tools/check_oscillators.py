@@ -262,10 +262,12 @@ def pitch_trace(y):
     return np.interp(np.arange(0, centers[-1], .001), centers, 1/np.diff(times))
 
 
-def trace_lag(reference, candidate, period):
-    """Lag in ms, within half a period, where reference(t) ~ candidate(t + lag)."""
-    segment = np.log2(reference[period:3*period])
-    costs = [np.var(segment - np.log2(candidate[period+lag:3*period+lag]))
+def trace_lag(reference, candidate, period, start=None):
+    """Lag in ms, within half a period, where reference(t) ~ candidate(t + lag),
+    over two periods from start (default: one period into the window)."""
+    start = period if start is None else start
+    segment = np.log2(reference[start:start+2*period])
+    costs = [np.var(segment - np.log2(candidate[start+lag:start+2*period+lag]))
              for lag in range(-(period//2), period - period//2)]
     return int(np.argmin(costs)) - period//2
 
@@ -286,12 +288,12 @@ def source_phases(targets):
     data = json.loads(PHASES.read_text())
     if data["target_sha256"] != sha256(TARGETS):
         raise ValueError("Source phases belong to different targets")
-    phases = {case["source_sha256"]: case["source_phase_at_render_start"] for case in data["cases"]}
-    if set(phases) != {row["source_sha256"] for row in targets["modulation"]} or len(phases) != len(data["cases"]):
+    cases = {case["source_sha256"]: case for case in data["cases"]}
+    if set(cases) != {row["source_sha256"] for row in targets["modulation"]} or len(cases) != len(data["cases"]):
         raise ValueError("Source phases must cover every frozen modulation case once")
-    if not all(0 <= phase < 1 for phase in phases.values()):
+    if not all(0 <= case["source_phase_at_render_start"] < 1 for case in cases.values()):
         raise ValueError("Source phase outside 0..1")
-    return phases
+    return cases
 
 
 def derive_source_phases(renderer, folder, targets, files):
@@ -303,18 +305,27 @@ def derive_source_phases(renderer, folder, targets, files):
         period = round(1000/row["modulation_hz"])
         phase = 0.
         for _ in range(8):
-            lag = trace_lag(reference, pitch_trace(modulation_window(renderer, folder, "phase-align", row, targets, phase)), period)
+            candidate = pitch_trace(modulation_window(renderer, folder, "phase-align", row, targets, phase))
+            lag = trace_lag(reference, candidate, period)
             if abs(lag) <= 1:
                 break
             phase = (phase + lag*row["modulation_hz"]/1000) % 1
         else:
             raise ValueError("Source phase alignment did not converge")
+        # Measured, never corrected: the same lag over the last two complete periods.
+        end = min(len(reference), len(candidate)) - 3*period
+        end_lag = trace_lag(reference, candidate, period, end)
         cases.append(dict(source_sha256=row["source_sha256"], shape=row["shape"], amount=row["amount"],
-                          feedback=row["feedback"], source_phase_at_render_start=round(phase, 6)))
+                          feedback=row["feedback"], source_phase_at_render_start=round(phase, 6),
+                          initial_lag_ms=lag, end_lag_ms=end_lag, drift_interval_seconds=(end-period)/1000,
+                          candidate_rate_difference_percent=round(-100*(end_lag-lag)/(end-period), 4)))
     return dict(target_sha256=sha256(TARGETS), cases=cases,
-                method="Initial oscillator-3 phase, in the C engine's convention, for a render of the "
-                       "recording's duration; iteratively shifted until the measured pitch trace in the "
-                       "analysed window is within 1 ms of the recording's. Carrier phase is not matched.")
+                method="Initial alignment: oscillator-3 phase, in the C engine's convention, for a render of "
+                       "the recording's duration, iteratively shifted until the measured pitch trace over the "
+                       "first two analysed modulation periods is within 1 ms of the recording's. The same lag "
+                       "over the last two periods measures timing drift, which is reported, not corrected; "
+                       "negative rate differences mean the candidate modulation runs slower. Carrier phase is "
+                       "not matched.")
 
 
 def phase_derivation_checks(derived):
@@ -333,11 +344,13 @@ def modulation_checks(renderer, folder, targets, phases):
     baseline = round(targets["extraction"]["modulation_carrier_baseline_hz"]*65536)/65536
     for row in targets["modulation"]:
         shape = targets["extraction"]["modulation_shape_to_global"][row["shape"]]
-        phase = phases[row["source_sha256"]]
+        case = phases[row["source_sha256"]]
         y = modulation_window(renderer, folder, f"mod-shape{shape}-feedback{int(row['feedback'])}-amount{row['amount']}",
-                              row, targets, phase)
+                              row, targets, case["source_phase_at_render_start"])
         measured = slow_modulation(y, baseline)
-        rows.append(dict(shape=shape, amount=row["amount"], feedback=row["feedback"], source_phase=phase,
+        timing = {key: case[key] for key in ("initial_lag_ms", "end_lag_ms", "candidate_rate_difference_percent")}
+        rows.append(dict(shape=shape, amount=row["amount"], feedback=row["feedback"],
+                         source_phase=case["source_phase_at_render_start"], recorded_timing=timing,
                          **modulation_result(measured, row, targets)))
     return rows
 
@@ -510,6 +523,12 @@ def main():
         failures.append(report["refinement"])
     for row in failures:
         print("FAIL:", row)
+    if modulation:
+        worst = max(modulation, key=lambda row: abs(row["recorded_timing"]["candidate_rate_difference_percent"]))
+        print(f"Timing drift against recordings (reported, not a target): up to "
+              f"{worst['recorded_timing']['candidate_rate_difference_percent']:+.3f}% modulation rate, "
+              f"{worst['recorded_timing']['end_lag_ms']} ms at the window end "
+              f"(shape {worst['shape']}, amount {worst['amount']}, feedback {worst['feedback']})")
     print(f"{'FAIL' if failures else 'PASS'}: {len(static)} frozen signed-shape, {len(alias)} static spectral, {len(frequencies)} frequency, {len(local)} local recording, {len(derivation)} source-phase, {len(modulation)} slow-modulation and {len(phase_sweep)} phase-sweep cases")
     raise SystemExit(bool(failures))
 

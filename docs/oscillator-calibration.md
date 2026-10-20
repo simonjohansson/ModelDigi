@@ -118,10 +118,12 @@ towards the 3-cent limit.
 
 Each recording exposes its own source phase through its measured pitch trace.
 Modulation acceptance therefore starts oscillator 3 at the phase that
-reproduces each recording's analysed window. These phases come from the
-hash-verified recordings, are kept separate from the frozen targets, and are
-re-derived by the explicit local comparison. All 36 open-loop recordings imply
-the same phase. With matched phases and no gain, all 48 cases pass. Worst span
+reproduces the start of each recording's analysed window. This is an initial
+alignment over the first two modulation periods, not a whole-window match.
+These phases come from the hash-verified recordings, are kept separate from the
+frozen targets, and are re-derived by the explicit local comparison. All 36
+open-loop recordings imply the same phase. With matched phases and no gain,
+all 48 cases pass. Worst span
 errors are 0.99 cents open-loop and 0.70 cents with feedback; worst mean errors
 are 0.95 and 0.74 cents. Residuals stay roughly constant in cents across a 27×
 depth range, so they indicate no depth-calibration or control-amplitude scale
@@ -131,8 +133,13 @@ receives the same depth as the carrier.
 
 Small residuals remain within limits and unexplained. The separate open-loop
 saw and reverse-saw biases split the feedback means by about 1.4 cents, whereas
-the recordings show equal feedback means. Feedback source rates at amount 0.1
-read 0.05–0.09% low. Pulse mean frequencies carry +0.45 to +0.95 cents. Carrier
+the recordings show equal feedback means. Feedback modulation runs slower than
+recorded: by 0.04–0.12% for triangle and saws at both amounts and for pulses at
+amount 0.1, so the initially aligned trace falls up to 20 ms behind by the end
+of an 18.5-second window. Pulses at amount 0.5 run about 0.02% fast, and
+open-loop timing stays within 1 ms. This drift is reported beside the
+summaries; later sections are never realigned to hide it. Pulse mean
+frequencies carry +0.45 to +0.95 cents. Carrier
 phase is not matched; it moves spans by up to about 0.2 cents. Audio-rate FM
 remains unqualified. Do not refit the feedback holdouts or weaken the frozen
 targets.
