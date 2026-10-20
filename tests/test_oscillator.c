@@ -17,7 +17,7 @@ static modeldigi_osc_params defaults(void)
 
 static void splitting(void)
 {
-    modeldigi_osc_state a, b, independent;
+    modeldigi_osc_state a = {0}, b, independent;
     modeldigi_osc_params p = defaults();
     int32_t whole[257], parts[257], other[257];
     modeldigi_osc_init(&a); modeldigi_osc_init(&b); modeldigi_osc_init(&independent);
@@ -36,7 +36,39 @@ static void splitting(void)
         }
         assert(!memcmp(whole, parts, sizeof(whole)));
         assert(!memcmp(parts, other, sizeof(parts)));
-        assert(!memcmp(&a, &b, sizeof(a)));
+        assert(!memcmp(&a, &b, offsetof(modeldigi_osc_state, workspace)));
+    }
+}
+
+static void workspace(void)
+{
+    modeldigi_osc_state a, b;
+    modeldigi_osc_params p = defaults();
+    int32_t x[32], y[32];
+    memset(&a, 0xa5, sizeof(a));
+    memset(&b, 0x5a, sizeof(b));
+    modeldigi_osc_init(&a);
+    modeldigi_osc_init(&b);
+    assert(!memcmp(&a, &b, offsetof(modeldigi_osc_state, workspace)));
+    assert(((unsigned char *)&a.workspace)[0] == 0xa5);
+    assert(((unsigned char *)&b.workspace)[0] == 0x5a);
+    for (unsigned block = 0; block < 128; ++block) {
+        p.waveform[0] = (uint8_t)(block % 7);
+        p.waveform[2] = (uint8_t)((block / 7) % 7);
+        p.level[0] = block % 4 ? 65535 : 0;
+        p.level[1] = block % 3 ? 32768 : 0;
+        p.modulation_enabled = block % 3 != 0;
+        p.osc3_control = block % 2 != 0;
+        p.modulation_depth_q16_16 = block % 5 * 32768;
+        memset(&a.workspace, (int)(block ^ 0xa5), sizeof(a.workspace));
+        memset(&b.workspace, (int)(block ^ 0x5a), sizeof(b.workspace));
+        modeldigi_osc_render(&a, &p, x, 32);
+        modeldigi_osc_state before = a;
+        modeldigi_osc_render(&b, &p, y, 7);
+        modeldigi_osc_render(&b, &p, y + 7, 25);
+        assert(!memcmp(x, y, sizeof(x)));
+        assert(!memcmp(&a, &b, offsetof(modeldigi_osc_state, workspace)));
+        assert(!memcmp(&a, &before, sizeof(a)));
     }
 }
 
@@ -213,6 +245,6 @@ static void carrier_phase_does_not_change_pitch(void)
 
 int main(void)
 {
-    splitting(); continuity(); bounds(); exact_controls(); bank_sum_and_pulse_edges(); modulation_routing(); carrier_phase_does_not_change_pitch();
+    workspace(); splitting(); continuity(); bounds(); exact_controls(); bank_sum_and_pulse_edges(); modulation_routing(); carrier_phase_does_not_change_pitch();
     return 0;
 }

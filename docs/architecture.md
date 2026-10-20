@@ -23,6 +23,16 @@ across trigs, note changes and source muting. Oscillators 2/3 still advance
 their clocks while inaudible. The trial restriction changes neither their
 stored control meanings nor the shared engine's behavior.
 
+Each bank also owns 768 bytes of transient workspace for 64 internal mix
+samples and modulation factors. Rendering reuses that memory without heap
+allocation or shared scratch. It processes eight output frames per chunk at
+8× and four at 16× refinement, keeping the workspace capacity fixed. This
+keeps bulk buffers off the audio callback's interrupted task stack.
+Initialization resets only persistent oscillator and filter state; workspace
+is overwritten before use. Exact state comparisons cover the persistent
+state, while workspace contents may differ with render splitting. The private
+bank layout is not a saved-sound format.
+
 ## Digitakt controls
 
 The machine uses permanent ID 42 on SLICE's parameter bank and fills its own
