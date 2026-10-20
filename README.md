@@ -1,14 +1,16 @@
 # ModelDigi
 
-A future Minimoog Model D clone for Elektron machines. This repository is a
-buildable, silent scaffold: no oscillators, filter, envelopes or controls yet.
+A future Minimoog Model D clone for Elektron machines. The shared C oscillator
+bank runs in a host renderer against frozen reference targets. Device firmware
+remains a buildable, silent scaffold; device controls and integration come later.
 
 The layout follows OB-1:
 
-- `dsp/`: shared, firmware-independent sound engine; currently writes silence.
+- `dsp/`: shared, firmware-independent oscillator bank and silent device adapter.
 - `machines/digitakt/`: Digitakt mk1 registration and render callback.
 - `machines/digitone/`: explicit placeholder for the future Digitone port.
-- `tests/`: host checks for silence, buffer bounds and track isolation.
+- `tests/`: oscillator mechanics, frozen numeric targets and device isolation checks.
+- `tools/`: actual-C WAV renderer and measurement-only comparisons.
 - `vendor/`: Elekloader SDK and digiemu, pinned to OB-1's dependency revisions.
 
 Use mise from the repository root:
@@ -17,10 +19,17 @@ Use mise from the repository root:
 mise trust
 mise bootstrap
 mise run test
+mise run test:oscillators
+mise run render out/saw.wav seconds=3 freq1=440 wave1=3
 mise run build
 mise run firmware
 mise run emu
 ```
+
+`test:modulation` checks the frozen slow-modulation cases; `test:refinement`
+doubles the same C engine's internal rate. These host tasks need no private
+recordings or stock firmware. See [Development](docs/development.md) for explicit
+local recording comparisons and the remaining qualification limits.
 
 Supply stock Digitakt mk1 OS 1.53 or 1.54 in `firmware/`, named
 `Digitakt_OS1.53.syx` or `Digitakt_OS1.54.syx`, before building. The firmware

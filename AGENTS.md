@@ -6,13 +6,13 @@ Keep code comments and README files free of issue references. Commit messages ma
 
 ## Project orientation
 
-ModelDigi is a future Minimoog Model D clone. It currently contains only a silent DSP scaffold and a Digitakt mk1 integration; Digitone is a scaffold whose placeholder tasks succeed without producing a working port. Do not add synthesis, controls or extra workflows unless requested.
+ModelDigi is a future Minimoog Model D clone. Its shared C oscillator bank runs in a host renderer; the Digitakt mk1 adapter remains silent pending later integration. Digitone is a scaffold whose placeholder tasks succeed without producing a working port. Do not add other synthesis sections, controls or extra workflows unless requested.
 
 Read [Architecture](docs/architecture.md) for integration boundaries and [Development and verification](docs/development.md) for setup, commands and checks. Before implementing Model D behavior, establish manufacturer sources and document numeric constraints and confidence separately from measurements.
 
 - Manage language runtimes with mise. `mise run test` runs host DSP checks without stock firmware or the cross-toolchain; it does not verify device integration, persistence, CPU headroom or analog fidelity.
 - The Digitakt scaffold uses experimental machine ID 121. Assign a permanent ID before publishing sounds; changes to published IDs or saved parameter meanings need explicit authorization.
-- The current engine must output silence. When synthesis is explicitly requested, establish headroom and level matching checks. Keep printed specifications, circuit assumptions, model choices and hardware measurements distinct.
+- Keep the device adapter silent until integration is requested. Preserve oscillator headroom and level matching checks. Keep printed specifications, circuit assumptions, model choices and hardware measurements distinct.
 - Stock firmware and raw research remain local and ignored. Keep device-specific firmware assumptions out of the shared sound engine and leave dependency submodules unchanged unless the task requires them.
 
 ## GitHub issues
