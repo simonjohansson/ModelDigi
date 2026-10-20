@@ -224,10 +224,9 @@ static void carrier_phase_does_not_change_pitch(void)
     modeldigi_osc_state a, b;
     modeldigi_osc_params p = defaults();
     int32_t sample;
-    const uint64_t mask = (UINT64_C(1) << 48) - 1;
     modeldigi_osc_init(&a); modeldigi_osc_init(&b);
-    b.voice[0].phase = UINT64_C(3) << 46;
-    a.voice[2].phase = b.voice[2].phase = UINT64_C(3) << 46;
+    b.voice[0].phase = UINT64_C(3) << 62;
+    a.voice[2].phase = b.voice[2].phase = UINT64_C(3) << 62;
     /* Frozen slow-feedback condition in the engine's resolved integer units. */
     p.frequency_q16_16[0] = 17154938;
     p.frequency_q16_16[2] = 133659;
@@ -238,7 +237,7 @@ static void carrier_phase_does_not_change_pitch(void)
         uint64_t before_a = a.voice[0].phase, before_b = b.voice[0].phase;
         modeldigi_osc_render(&a, &p, &sample, 1);
         modeldigi_osc_render(&b, &p, &sample, 1);
-        assert(((a.voice[0].phase - before_a) & mask) == ((b.voice[0].phase - before_b) & mask));
+        assert(a.voice[0].phase - before_a == b.voice[0].phase - before_b);
         assert(!memcmp(&a.voice[2], &b.voice[2], sizeof(a.voice[2])));
     }
 }

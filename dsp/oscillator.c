@@ -15,8 +15,9 @@
 /* Device code links no 64-bit runtime helpers: products use 16-bit halves, 64-bit values are only
  * added, compared and shifted by constants. */
 
+/* Phases and increments are Q0.64 cycles: 48 significant bits above 16 zero bits, so a phase wraps
+ * naturally and its top word is the 2^-32-cycle phase used for events and shapes. */
 #define ONE (UINT64_C(1) << 48)
-#define MASK (ONE - 1)
 #define Q INT32_C(67108864)
 #define RATE (48000u * MODELDIGI_OVERSAMPLE)
 #define SAW INT64_C(63603062)
@@ -119,8 +120,8 @@ static int32_t scaled(int32_t v, uint32_t level)
 
 static uint64_t increment(uint32_t hz)
 {
-    /* hz * 2^32 / RATE via a 2^47 / RATE reciprocal. */
-    return mul64(hz, (uint32_t)(((UINT64_C(1) << 47) + RATE / 2) / RATE)) >> 15;
+    /* hz * 2^32 / RATE via a 2^47 / RATE reciprocal, kept to 48 bits. */
+    return (mul64(hz, (uint32_t)(((UINT64_C(1) << 47) + RATE / 2) / RATE)) >> 15) << 16;
 }
 
 #define HZ_MIN 4096u
@@ -149,13 +150,13 @@ HOT octave_factor factor(int32_t octaves)
  * enough to move slow-modulation spans by half a cent. */
 HOT uint64_t modulate(uint64_t inc, octave_factor f, uint64_t lo, uint64_t hi)
 {
-    uint32_t a = (uint32_t)(inc >> 32), b = (uint32_t)(inc >> 16) & 0xffff, c = (uint32_t)inc & 0xffff;
-    uint64_t r = ((uint64_t)(a * f.t) << 17) + ((uint64_t)(b * f.t) << 1) + ((c * f.t) >> 15);
+    uint32_t high = (uint32_t)(inc >> 32), a = high >> 16, b = high & 0xffff, c = (uint32_t)inc >> 16;
+    uint64_t r = ((uint64_t)(a * f.t) << 33) + ((uint64_t)(b * f.t) << 17) + ((uint64_t)((c * f.t) >> 15) << 16);
     int32_t whole = f.whole;
     for (; whole > 0 && r < hi; --whole)
         r <<= 1;
     for (; whole < 0 && r > lo; ++whole)
-        r >>= 1;
+        r = (r >> 1) & ~UINT64_C(0xffff);
     return r < lo ? lo : r > hi ? hi : r;
 }
 
@@ -253,13 +254,13 @@ typedef struct {
 /* Advance one sub-sample by inc; returns the held-back sample. */
 HOT int32_t advance(voice_run *r, const voice_lines *d, uint64_t inc)
 {
-    uint64_t phase = (r->phase + inc) & MASK;
-    uint32_t old = (uint32_t)(r->phase >> 16), x = (uint32_t)(phase >> 16), span = (uint32_t)(inc >> 16);
+    uint64_t phase = r->phase + inc;
+    uint32_t old = (uint32_t)(r->phase >> 32), x = (uint32_t)(phase >> 32), span = (uint32_t)(inc >> 32);
     int32_t pure = value(d, x), fix[2] = { 0, 0 };
     if (inc != r->last && d->shape < 4) {
         /* A rate change at this boundary: a sixth of the slope-rate change, held back. Below 2^-20
          * cycles per sub-sample (smooth modulation) the correction is under -120 dB and skipped. */
-        int32_t delta = (int32_t)((int64_t)(inc - r->last) >> 16);
+        int32_t delta = (int32_t)((int64_t)(inc - r->last) >> 32);
         if (delta >= 4096 || delta <= -4096) {
             int32_t b = d->b[old >> 31];
             int32_t change = delta >= 0 ? mulhi(b, (uint32_t)delta) : -mulhi(b, (uint32_t)-delta);
@@ -293,15 +294,15 @@ static void begin(struct modeldigi_osc_voice *o, voice_run *r, const voice_lines
     r->last = o->increment;
     r->previous = o->previous;
     r->held = o->held;
-    uint32_t old = (uint32_t)(o->phase >> 16);
+    uint32_t old = (uint32_t)(o->phase >> 32);
     if (!o->primed) {
         r->previous = r->held = value(d, old);
         r->last = inc;
         o->primed = true;
     } else if (fresh) {
         unsigned k = old >> 31;
-        int32_t change = mulhi(d->shape < 4 ? d->b[k] : 0, (uint32_t)(inc >> 16))
-                       - mulhi(o->slope[k], (uint32_t)(o->increment >> 16));
+        int32_t change = mulhi(d->shape < 4 ? d->b[k] : 0, (uint32_t)(inc >> 32))
+                       - mulhi(o->slope[k], (uint32_t)(o->increment >> 32));
         r->previous += ((value(d, old) - r->held) >> 1) + mul16(change, 10923);
         r->last = inc;
     }
@@ -341,7 +342,7 @@ static void run_voice(struct modeldigi_osc_voice *o, const voice_lines *d, uint6
         } else {
             phase += times(step, m);
         }
-        o->phase = phase & MASK;
+        o->phase = phase;
         o->increment = inc;
         o->previous = o->held = 0;
         if (first)
@@ -409,8 +410,8 @@ void modeldigi_osc_init(modeldigi_osc_state *state)
 {
     unsigned char *bytes = (unsigned char *)state;
     for (size_t i = 0; i < offsetof(modeldigi_osc_state, workspace); ++i) bytes[i] = 0;
-    state->voice[1].phase = ONE / 3;
-    state->voice[2].phase = 2 * (ONE / 3);
+    state->voice[1].phase = (ONE / 3) << 16;
+    state->voice[2].phase = (2 * (ONE / 3)) << 16;
 }
 
 void modeldigi_osc_render(modeldigi_osc_state *s, const modeldigi_osc_params *p,
@@ -456,7 +457,7 @@ void modeldigi_osc_render(modeldigi_osc_state *s, const modeldigi_osc_params *p,
             voice_run r;
             int primed = o->primed;
             for (unsigned i = 0; i < m; ++i) {
-                uint32_t x = (uint32_t)((i ? r.phase : o->phase) >> 16);
+                uint32_t x = (uint32_t)((i ? r.phase : o->phase) >> 32);
                 int32_t octaves = control.shape < 4 ? line(oa[x >> 31], ob[x >> 31], x)
                                 : x >= control.fall && x < control.rise ? on : 0;
                 mod[i] = factor(octaves);

@@ -17,7 +17,7 @@ typedef struct {
 
 /* Private scratch layout: not a sound format or a stable ABI. */
 struct modeldigi_osc_voice {
-    uint64_t phase, increment; /* 48 fractional cycle bits */
+    uint64_t phase, increment; /* Q0.64 cycles, low 16 bits zero */
     int32_t previous, held, slope[2];
     uint16_t level;
     uint8_t waveform;
