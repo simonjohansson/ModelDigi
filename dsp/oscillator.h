@@ -16,17 +16,21 @@ typedef struct {
 } modeldigi_osc_params;
 
 /* Private scratch layout: not a sound format or a stable ABI. */
+struct modeldigi_osc_voice {
+    uint64_t phase, increment; /* 48 fractional cycle bits */
+    int32_t previous, held, slope[2];
+    uint16_t level;
+    uint8_t waveform;
+    bool primed;
+};
+
+struct modeldigi_osc_filter {
+    int32_t state[2][4]; /* each allpass branch's section memories */
+};
+
 typedef struct {
-    struct {
-        uint64_t phase, increment; /* 48 fractional cycle bits */
-        int32_t previous;
-        uint8_t waveform;
-        bool primed;
-    } voice[3];
-    struct {
-        int32_t samples[97];
-        unsigned position, parity;
-    } filter[4];
+    struct modeldigi_osc_voice voice[3];
+    struct modeldigi_osc_filter filter[4];
 } modeldigi_osc_state;
 
 void modeldigi_osc_init(modeldigi_osc_state *state);

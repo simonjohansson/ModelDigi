@@ -112,6 +112,10 @@ run = [
   'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_oscillators.py --modulation --factor 16 --renderer out/render-16 --out out/refinement-16 --compare out/refinement-8/validation.json',
 ]
 
+[tasks.cost]
+description = "Estimate the oscillator bank's ColdFire cost per block with digiemu's cycle model"
+run = 'uv run --project vendor/digiemu python tools/cost/measure.py "$@"'
+
 [tasks."test:phase-sweep"]
 description = "Probe the near-limit feedback case across carrier and source start phases"
 depends = ["build:renderer"]

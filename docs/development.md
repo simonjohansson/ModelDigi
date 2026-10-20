@@ -71,9 +71,19 @@ separately. This grid is not an audio-rate FM alias qualification.
 
 GitHub Actions runs the host mechanics, portable spectral/measurement checks
 and all frozen slow-modulation cases through mise. It needs neither private
-recordings nor stock firmware. The 8× rate remains provisional for device use:
-64-bit arithmetic helpers and filter indexing need complete-render timing on
-two realistic instances before choosing or optimizing a device rate.
+recordings nor stock firmware. The 8× host rate is not a device choice.
+
+`mise run cost [factor ...]` estimates the ColdFire cost of one bank per
+32-frame block. It compiles the actual engine with the SDK's Digitakt flags,
+links it with a small driver at a fixed address, and times five fixed
+scenarios under digiemu's cycle model, which uses the processor manual's
+timing tables and assumes zero-wait memory. It also reports any 64-bit
+runtime helper the engine would import. Stock 1.53's render is estimated at
+about 100,000 of the 166,700 cycles in each period at 250 MHz, so a 10%
+render margin leaves about 50,000 cycles for one instance or 25,000 for each
+of two. These are estimates; the firmware check's timing stage and the device
+remain the authority. The task needs the cross-toolchain and a bootstrapped
+digiemu.
 
 The modulation task adds all 48 frozen slow-modulation cases, preserving span,
 cents of mean frequency and time-averaged cents. Each case renders its
