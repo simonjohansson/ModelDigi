@@ -164,9 +164,13 @@ HOT uint64_t modulate(uint64_t inc, octave_factor f, uint64_t lo, uint64_t hi)
 static uint32_t since(uint32_t span, uint32_t distance)
 {
     uint32_t part = span - distance;
-    while (span >= 65536) {
-        span = (span + 1) >> 1;
-        part = (part + 1) >> 1;
+    /* Rounded halving is one ceiling shift, including the extra shift at a power boundary. */
+    if (span >= 65536) {
+        unsigned shift = 16u - (unsigned)__builtin_clz(span);
+        if (span > (65535u << shift)) ++shift;
+        uint32_t round = (1u << shift) - 1;
+        span = (span + round) >> shift;
+        part = (part + round) >> shift;
     }
     return span ? ((part << 16) + span / 2) / span : 0;
 }
