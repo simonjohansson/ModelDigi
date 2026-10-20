@@ -1,6 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "digitakt-mk1/core3.h"
-#include "../../dsp/dsp.h"
 #include "controls.h"
 
 #define MODELDIGI_ID 42
@@ -10,10 +9,27 @@
 
 void modeldigi_digitakt_render(int32_t *blocks)
 {
-    /* shortcut: silent until the oscillator engine is device-ready (no 64-bit helpers, measured cost). */
-    for (int track = 0; track < 8; track++)
-        if (fw_render_machine[track] == MODELDIGI_ID)
-            modeldigi_render(&blocks[32 * track]);
+    static modeldigi_osc_state banks[8];
+    static uint8_t active[8];
+    for (int track = 0; track < 8; track++) {
+        if (fw_render_machine[track] != MODELDIGI_ID) {
+            active[track] = 0;
+            continue;
+        }
+        if (!active[track]) {
+            modeldigi_osc_init(&banks[track]);
+            active[track] = 1;
+        }
+        int16_t values[MD_VALUES];
+        modeldigi_osc_params params;
+        for (int k = 0; k < MD_VALUES; ++k)
+            values[k] = (int16_t)cm_src_value(track, k);
+        modeldigi_decode(values, fw_voice_note[track], &params);
+        /* shortcut: one audible oscillator for the measured device trial; enable the bank after qualification. */
+        params.level[1] = params.level[2] = 0;
+        params.modulation_enabled = false;
+        modeldigi_osc_render(&banks[track], &params, &blocks[32 * track], 32);
+    }
 }
 
 /* Oscillator 3's CONTROL on the active track's sound (slot 47), for FRQ3's wide text. */

@@ -46,7 +46,7 @@ description = "Build ModelDigi device mods"
 depends = ["build:digitakt", "build:digitone"]
 
 [tasks."build:digitakt"]
-description = "Build and lint the silent Digitakt machine for each local OS"
+description = "Build and lint the one-oscillator Digitakt trial for each local OS"
 depends = ["build:deps:digitakt"]
 run = '''
 set -eu
@@ -62,12 +62,12 @@ done
 '''
 
 [tasks.test]
-description = "Check C oscillator mechanics, silent device output and track isolation"
+description = "Check C oscillator mechanics, Digitakt controls and track isolation"
 run = [
   "mkdir -p out",
   "cc -std=c99 -O2 -Wall -Wextra -Werror dsp/dsp.c tests/test_dsp.c -o out/test_dsp",
   "out/test_dsp",
-  "cc -std=c99 -O2 -Wall -Wextra -Werror -Ivendor/elekloader/elekloader/sdk/include dsp/dsp.c machines/digitakt/modeldigi.c machines/digitakt/controls.c tests/test_digitakt.c -lm -o out/test_digitakt",
+  "cc -std=c99 -O2 -Wall -Wextra -Werror -Ivendor/elekloader/elekloader/sdk/include dsp/oscillator.c machines/digitakt/modeldigi.c machines/digitakt/controls.c tests/test_digitakt.c -lm -o out/test_digitakt",
   "out/test_digitakt",
   "cc -std=c99 -O2 -Wall -Wextra -Werror dsp/oscillator.c tests/test_oscillator.c -o out/test_oscillator",
   "out/test_oscillator",
@@ -126,7 +126,7 @@ description = "Build custom firmware for the device targets"
 depends = ["firmware:digitakt", "firmware:digitone"]
 
 [tasks."firmware:digitakt"]
-description = "Package the selected stock OS with the silent ModelDigi machine"
+description = "Package the selected stock OS with the one-oscillator ModelDigi trial"
 depends = ["build:digitakt"]
 run = '''
 set -eu

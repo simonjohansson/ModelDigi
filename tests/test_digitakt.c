@@ -7,11 +7,20 @@
 #include "../machines/digitakt/controls.h"
 
 volatile uint8_t fw_render_machine[8];
+volatile int32_t fw_voice_note[8];
+volatile uint32_t fw_voice_start;
 volatile uint32_t fw_active_track;
 uint8_t *volatile fw_kit;
 const char cm_ui_v32[] = "UI32";
 extern const struct cm_machine modeldigi_machine;
 extern void modeldigi_digitakt_render(int32_t *blocks);
+static int16_t live_values[8][MD_VALUES];
+
+int32_t cm_src_value(int32_t track, int32_t parameter)
+{
+    assert(track >= 0 && track < 8 && parameter >= 0 && parameter < MD_VALUES);
+    return live_values[track][parameter];
+}
 
 static const struct cm_ui32 *page(void)
 {
@@ -42,6 +51,10 @@ static void near_cents(uint32_t actual, double expected)
 static void isolation(void)
 {
     int32_t samples[8 * 32 + 2];
+    for (int track = 0; track < 8; ++track) {
+        defaults(live_values[track]);
+        fw_voice_note[track] = 60 << 16;
+    }
     for (int selected = -1; selected < 8; selected++) {
         for (int i = 0; i < 8 * 32 + 2; i++)
             samples[i] = 12345;
@@ -49,10 +62,61 @@ static void isolation(void)
             fw_render_machine[track] = track == selected ? modeldigi_machine.id : 0;
         modeldigi_digitakt_render(&samples[1]);
         assert(samples[0] == 12345 && samples[8 * 32 + 1] == 12345);
+        int audible = 0;
         for (int track = 0; track < 8; track++)
             for (int i = 0; i < 32; i++)
-                assert(samples[1 + 32 * track + i] == (track == selected ? 0 : 12345));
+                if (track == selected) {
+                    int32_t sample = samples[1 + 32 * track + i];
+                    assert(sample > -1076291389 && sample < 1076291389);
+                    audible |= sample != 0;
+                } else {
+                    assert(samples[1 + 32 * track + i] == 12345);
+                }
+        assert(audible == (selected >= 0));
     }
+}
+
+static void render_lifetime(void)
+{
+    int32_t samples[8 * 32] = {0}, expected[32];
+    modeldigi_osc_state direct[2];
+    for (int track = 0; track < 8; ++track) fw_render_machine[track] = 0;
+    modeldigi_digitakt_render(samples);
+    for (int track = 0; track < 2; ++track) {
+        defaults(live_values[track]);
+        fw_render_machine[track] = 42;
+        modeldigi_osc_init(&direct[track]);
+        /* The trial must stay single-oscillator even with stored bank controls enabled. */
+        live_values[track][MD_LEV2] = live_values[track][MD_LEV3] = 127 << 8;
+        live_values[track][MD_MOD] = live_values[track][MD_DPTH] = 127 << 8;
+    }
+    for (int block = 0; block < 12; ++block) {
+        fw_voice_start = block & 1 ? 3 : 0;
+        fw_voice_note[0] = (block < 4 ? 60 : 72) << 16;
+        fw_voice_note[1] = 67 << 16;
+        live_values[0][MD_WAV1] = (block < 6 ? 2 : 3) << 8;
+        live_values[0][MD_LEV1] = (block == 8 || block == 9 ? 0 : 127) << 8;
+        modeldigi_digitakt_render(samples);
+        for (int track = 0; track < 2; ++track) {
+            modeldigi_osc_params p;
+            modeldigi_decode(live_values[track], fw_voice_note[track], &p);
+            p.level[1] = p.level[2] = 0;
+            p.modulation_enabled = false;
+            modeldigi_osc_render(&direct[track], &p, expected, 32);
+            assert(!memcmp(samples + 32 * track, expected, sizeof expected));
+        }
+    }
+    fw_render_machine[0] = 0;
+    modeldigi_digitakt_render(samples);
+    fw_render_machine[0] = 42;
+    modeldigi_osc_init(&direct[0]);
+    modeldigi_osc_params p;
+    modeldigi_decode(live_values[0], fw_voice_note[0], &p);
+    p.level[1] = p.level[2] = 0;
+    p.modulation_enabled = false;
+    modeldigi_osc_render(&direct[0], &p, expected, 32);
+    modeldigi_digitakt_render(samples);
+    assert(!memcmp(samples, expected, sizeof expected));
 }
 
 static void descriptor(void)
@@ -196,6 +260,7 @@ static void text(void)
 int main(void)
 {
     isolation();
+    render_lifetime();
     descriptor();
     decoding();
     text();

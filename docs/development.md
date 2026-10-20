@@ -27,7 +27,7 @@ the SDK's hash verification and reject unknown firmware.
 | `mise run build` | Builds Core, machine-pages and ModelDigi for every local Digitakt OS; lints the machine with its dependencies. Artifacts go into `out/os<OS>/`. |
 | `mise run firmware` | Builds and patches the selected stock OS into `out/Digitakt_ModelDigi.syx`. No device transfer. |
 | `mise run emu` | Builds firmware, prepares it in digiemu and opens its panel. Emulator data stays in `.digiemu/`. |
-| `mise run test` | Checks C oscillator state, splitting, bounds and routing, plus Digitakt control decoding, value text, page layout, silent output and track isolation. |
+| `mise run test` | Checks C oscillator state, splitting, bounds and routing, plus Digitakt control decoding, value text, page layout, actual single-oscillator output, state lifetime and track isolation. |
 
 The first three tasks dispatch to Digitakt and Digitone. Every Digitone
 subtask is a successful placeholder with no artifact or panel. Direct
@@ -152,12 +152,13 @@ the recordings do not isolate mixer transfer or match free-running phases.
 
 ## Evidence boundaries
 
-Host tests verify oscillator behavior and scaffold isolation, not complete firmware execution.
+Host tests verify oscillator behavior and adapter isolation, not complete firmware execution.
 SDK lint and firmware packaging verify linking and patch constraints, not
 hardware operation. Opening the emulator is separate from host tests.
 Physical-device qualification, performance budget, saved-sound compatibility,
 audio-rate FM quality and fidelity beyond the declared reference subset remain
-outstanding. The existing emulator task still runs the silent device adapter.
+outstanding. The emulator task runs the restricted one-oscillator timing trial
+at 8×; it does not enable the full bank or modulation.
 
 Stock firmware, built mods, custom firmware, emulator images and raw
 research stay local and ignored. Keep dependency revisions pinned; consult
