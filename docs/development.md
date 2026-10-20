@@ -71,7 +71,16 @@ separately. This grid is not an audio-rate FM alias qualification.
 
 GitHub Actions runs the host mechanics, portable spectral/measurement checks
 and all frozen slow-modulation cases through mise. It needs neither private
-recordings nor stock firmware. The 8× host rate is not a device choice.
+recordings nor stock firmware. The 8× host rate is the near-ideal comparison
+against the frozen targets; it is not a device choice.
+
+`MODELDIGI_DEVICE_OVERSAMPLE` in `mise.toml` (provisionally 4) is the device
+internal rate; CI and the firmware build follow it. `mise run test:device`
+checks that rate against the same frozen waveform, frequency and slow-modulation
+targets. Its aliasing is held to a committed baseline of that rate's measured
+residuals, at most 1 dB worse per case, rather than the −60 dBc gate, so the
+device's aliasing cannot regress unnoticed. Changing the rate requires a new
+baseline (`--write-alias-baseline`), reviewed rather than regenerated to pass.
 
 `mise run cost [factor ...]` estimates the ColdFire cost of one bank per
 32-frame block. It compiles the actual engine with the SDK's Digitakt flags,
