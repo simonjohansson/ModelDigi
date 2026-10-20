@@ -251,22 +251,12 @@ typedef struct {
     int32_t previous, held;
 } voice_run;
 
-/* Advance one sub-sample by inc; returns the held-back sample. */
-HOT int32_t advance(voice_run *r, const voice_lines *d, uint64_t inc)
+/* Advance one sub-sample by inc, the previous sub-sample's increment; returns the held-back sample. */
+HOT int32_t steady(voice_run *r, const voice_lines *d, uint64_t inc)
 {
     uint64_t phase = r->phase + inc;
     uint32_t old = (uint32_t)(r->phase >> 32), x = (uint32_t)(phase >> 32), span = (uint32_t)(inc >> 32);
     int32_t pure = value(d, x), fix[2] = { 0, 0 };
-    if (inc != r->last && d->shape < 4) {
-        /* A rate change at this boundary: a sixth of the slope-rate change, held back. Below 2^-20
-         * cycles per sub-sample (smooth modulation) the correction is under -120 dB and skipped. */
-        int32_t delta = (int32_t)((int64_t)(inc - r->last) >> 32);
-        if (delta >= 4096 || delta <= -4096) {
-            int32_t b = d->b[old >> 31];
-            int32_t change = delta >= 0 ? mulhi(b, (uint32_t)delta) : -mulhi(b, (uint32_t)-delta);
-            r->previous += mul16(change, 10923);
-        }
-    }
     if (d->shape < 4) {
         if (crossed(0, old, span))
             correct(fix, span, 0u - old, d->reset, -d->knee);
@@ -284,6 +274,22 @@ HOT int32_t advance(voice_run *r, const voice_lines *d, uint64_t inc)
     r->phase = phase;
     r->last = inc;
     return output;
+}
+
+/* Advance one sub-sample by inc; returns the held-back sample. */
+HOT int32_t advance(voice_run *r, const voice_lines *d, uint64_t inc)
+{
+    if (inc != r->last && d->shape < 4) {
+        /* A rate change at this boundary: a sixth of the slope-rate change, held back. Below 2^-20
+         * cycles per sub-sample (smooth modulation) the correction is under -120 dB and skipped. */
+        int32_t delta = (int32_t)((int64_t)(inc - r->last) >> 32);
+        if (delta >= 4096 || delta <= -4096) {
+            int32_t b = d->b[(uint32_t)(r->phase >> 32) >> 31];
+            int32_t change = delta >= 0 ? mulhi(b, (uint32_t)delta) : -mulhi(b, (uint32_t)-delta);
+            r->previous += mul16(change, 10923);
+        }
+    }
+    return steady(r, d, inc);
 }
 
 /* At a render's first sub-sample: prime a fresh voice, or hold back half of a waveform or level
@@ -330,6 +336,28 @@ HOT int changed(octave_factor a, octave_factor b)
     return a.t != b.t || a.whole != b.whole;
 }
 
+/* Unmodulated sub-samples into mix: only the first can change rate. Out of line, so the modulated
+ * loop keeps its registers. */
+static void __attribute__((noinline)) run_plain(voice_run *run, const voice_lines *d, uint64_t inc,
+                                                int32_t *mix, unsigned m, int first)
+{
+    voice_run r = *run;   /* a local copy: mix stores cannot alias it */
+    int32_t out = advance(&r, d, inc);
+    mix[0] = first ? out : mix[0] + out;
+    /* The empty asm hides the phase's closed form, which would need a 64-bit multiply helper. */
+    if (first)
+        for (unsigned i = 1; i < m; ++i) {
+            __asm__("" : "+r"(r.phase));
+            mix[i] = steady(&r, d, inc);
+        }
+    else
+        for (unsigned i = 1; i < m; ++i) {
+            __asm__("" : "+r"(r.phase));
+            mix[i] += steady(&r, d, inc);
+        }
+    *run = r;
+}
+
 /* Run voice v for m sub-samples into mix (added, unless first); mod holds each sub-sample's
  * modulation factor (t = 0: none), or is null. The modulated increment is recomputed only where
  * the factor changes. */
@@ -359,10 +387,20 @@ static void run_voice(struct modeldigi_osc_voice *o, const voice_lines *d, uint6
     }
     uint64_t inc = mod && mod[0].t ? modulate(step, mod[0], lo, hi) : step;
     begin(o, &r, d, inc, fresh);
+    if (!mod) {
+        run_plain(&r, d, inc, mix, m, first);
+        finish(o, &r);
+        return;
+    }
     for (unsigned i = 0; i < m; ++i) {
-        if (mod && i && changed(mod[i], mod[i - 1]))
-            inc = mod[i].t ? modulate(step, mod[i], lo, hi) : step;
-        int32_t out = advance(&r, d, inc);
+        int32_t out;
+        if (!i || changed(mod[i], mod[i - 1])) {
+            if (i)
+                inc = mod[i].t ? modulate(step, mod[i], lo, hi) : step;
+            out = advance(&r, d, inc);
+        } else {
+            out = steady(&r, d, inc);   /* the increment is held with the factor */
+        }
         mix[i] = first ? out : mix[i] + out;
     }
     finish(o, &r);
@@ -473,7 +511,8 @@ void modeldigi_osc_render(modeldigi_osc_state *s, const modeldigi_osc_params *p,
             for (unsigned i = 0; i < m; ++i) {
                 uint32_t x = (uint32_t)((i ? r.phase : o->phase) >> 32);
                 unsigned k = control.shape < 4 ? x >> 31 : x >= control.fall && x < control.rise;
-                if (i % MODELDIGI_OVERSAMPLE == 0 || k != segment) {
+                int refresh = i % MODELDIGI_OVERSAMPLE == 0 || k != segment;
+                if (refresh) {
                     int32_t octaves = control.shape < 4 ? line(oa[k], ob[k], x) : k ? on : 0;
                     segment = k;
                     f = factor(octaves);
@@ -485,8 +524,9 @@ void modeldigi_osc_render(modeldigi_osc_state *s, const modeldigi_osc_params *p,
                 mod[i] = f;
                 if (!i)
                     begin(o, &r, &lines[2], inc, fresh[2] || !primed);
-                mix[i] = lines[2].silent && !fresh[2] && primed ? (advance(&r, &lines[2], inc), 0)
-                                                                : advance(&r, &lines[2], inc);
+                /* The increment changes only where the factor is refreshed. */
+                int32_t out = refresh ? advance(&r, &lines[2], inc) : steady(&r, &lines[2], inc);
+                mix[i] = lines[2].silent && !fresh[2] && primed ? 0 : out;
             }
             finish(o, &r);
             run_voice(&s->voice[0], &lines[0], step[0], mod, lo, hi, mix, m, fresh[0], 0);
