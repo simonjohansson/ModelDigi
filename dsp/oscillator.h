@@ -28,11 +28,24 @@ struct modeldigi_osc_filter {
     int32_t state[2][4]; /* each allpass branch's section memories */
 };
 
+struct modeldigi_osc_factor {
+    uint32_t t;
+    int32_t whole;
+};
+
+struct modeldigi_osc_workspace {
+    int32_t mix[64];
+    struct modeldigi_osc_factor mod[64];
+};
+
 typedef struct {
     struct modeldigi_osc_voice voice[3];
     struct modeldigi_osc_filter filter[4];
+    /* Transient working memory, owned by this bank and overwritten before use. */
+    struct modeldigi_osc_workspace workspace;
 } modeldigi_osc_state;
 
+/* Initializes persistent state; transient workspace does not need initialization. */
 void modeldigi_osc_init(modeldigi_osc_state *state);
 /* 48 kHz mono Q31 with fixed 1/16 bank gain; no firmware dependencies.
  * Output may be NULL for zero frames, which changes nothing. State/params

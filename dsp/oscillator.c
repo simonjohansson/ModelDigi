@@ -132,10 +132,10 @@ static uint32_t bounded(uint32_t hz)
 }
 
 /* 2^octaves (Q16) as a Q15 fraction in [1, 2] and whole octaves. */
-typedef struct { uint32_t t; int32_t whole; } octave_factor;   /* t = 0: unmodulated */
+typedef struct modeldigi_osc_factor octave_factor;   /* t = 0: unmodulated */
 
-/* Output frames processed per pass; its sub-samples live on the stack. */
-#define CHUNK 8
+/* Bound each pass by the bank's 64 internal workspace samples, also at 16x refinement. */
+#define CHUNK (MODELDIGI_OVERSAMPLE == 16 ? 4 : 8)
 
 HOT octave_factor factor(int32_t octaves)
 {
@@ -392,7 +392,7 @@ static void decimate(modeldigi_osc_state *s, unsigned stage, int32_t *x, unsigne
 void modeldigi_osc_init(modeldigi_osc_state *state)
 {
     unsigned char *bytes = (unsigned char *)state;
-    for (size_t i = 0; i < sizeof(*state); ++i) bytes[i] = 0;
+    for (size_t i = 0; i < offsetof(modeldigi_osc_state, workspace); ++i) bytes[i] = 0;
     state->voice[1].phase = ONE / 3;
     state->voice[2].phase = 2 * (ONE / 3);
 }
@@ -428,8 +428,8 @@ void modeldigi_osc_render(modeldigi_osc_state *s, const modeldigi_osc_params *p,
             on = (int32_t)depth;
         }
     }
-    int32_t mix[CHUNK * MODELDIGI_OVERSAMPLE];
-    octave_factor mod[CHUNK * MODELDIGI_OVERSAMPLE];
+    int32_t *mix = s->workspace.mix;
+    octave_factor *mod = s->workspace.mod;
     for (size_t done = 0; done < frames;) {
         unsigned n = frames - done < CHUNK ? (unsigned)(frames - done) : CHUNK;
         unsigned m = n * MODELDIGI_OVERSAMPLE;
