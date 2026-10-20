@@ -116,6 +116,10 @@ run = [
 description = "Estimate the oscillator bank's ColdFire cost per block with digiemu's cycle model"
 run = 'uv run --project vendor/digiemu python tools/cost/measure.py "$@"'
 
+[tasks."cost:profile"]
+description = "Profile the unchanged 8× engine and verify cycle/state equivalence"
+run = 'uv run --project vendor/digiemu python tools/cost/profile.py "$@"'
+
 [tasks."test:phase-sweep"]
 description = "Probe the near-limit feedback case across carrier and source start phases"
 depends = ["build:renderer"]

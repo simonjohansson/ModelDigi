@@ -85,6 +85,15 @@ of two. These are estimates; the firmware check's timing stage and the device
 remain the authority. The task needs the cross-toolchain and a bootstrapped
 digiemu.
 
+`mise run cost:profile --blocks 24` profiles the same five scenarios at 8×,
+separating setup, the first block, warm-up and warm rendering. It attributes
+cycles to basic blocks and source instructions, including inlined helpers.
+Its checks require debug information to preserve the executable image and
+profiled execution to match every unprofiled call's cycles and output/state.
+The attributed total must equal the cycle clock, with no decoder mismatches.
+The report and debug images stay under ignored `out/profile-8x/`. These are
+isolated engine estimates, not complete-firmware or physical-device timing.
+
 The modulation task adds all 48 frozen slow-modulation cases, preserving span,
 cents of mean frequency and time-averaged cents. Each case renders its
 recording's duration, analyses the same window, and starts oscillator 3 at the
