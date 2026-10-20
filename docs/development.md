@@ -100,6 +100,20 @@ steady signal. Keep that estimator sensitivity separate from reference error
 and rate-refinement error. A complete-period span is useful diagnostically,
 but must not replace the frozen extractor or its targets without review.
 
+The phase report also includes a separate cycle diagnostic for this descending
+slow-ramp case. Observed mid-pitch crossings delimit complete modulation cycles;
+time-weighted percentiles of the linearly interpolated measured frequency avoid
+both a fitted repetition period and a second 1 kHz resampling grid. Marker
+times, period range and pitch quantiles are reported for inspection. This is
+not a generic audio-rate pitch estimator. The original frozen-window result
+still determines every `passed` flag and the command's exit status.
+
+Carrier-period pitch measurements average across each carrier cycle, especially
+around abrupt modulation resets. Distinguish that measurement aperture from
+the actual C phase-advance rate. The host state regression verifies that a
+carrier starting-phase change leaves its pitch increments and oscillator-3
+feedback state identical; it does not establish physical-unit fidelity.
+
 For a local recording comparison, point explicitly at the retained evidence:
 
 ```sh

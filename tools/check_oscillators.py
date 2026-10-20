@@ -204,6 +204,56 @@ def slow_modulation(y, baseline):
                 complete_periods=periods)
 
 
+def time_quantiles(times, values, quantiles):
+    """Time-weighted quantiles of a linearly interpolated measured trace."""
+    times, values = np.asarray(times), np.asarray(values)
+    if len(times) != len(values) or len(times) < 2 or not np.isfinite(times).all() or not np.isfinite(values).all() or np.any(np.diff(times) <= 0):
+        raise ValueError("Need finite values at increasing times")
+    durations = np.diff(times)
+    low = np.minimum(values[:-1], values[1:])
+    width = abs(np.diff(values))
+    result = []
+    for q in quantiles:
+        if not 0 <= q <= 1:
+            raise ValueError("Quantile outside 0..1")
+        a, b = float(values.min()), float(values.max())
+        for _ in range(48):
+            middle = (a+b)/2
+            fraction = np.divide(middle-low, width, out=(middle >= low).astype(float), where=width > 0)
+            probability = np.sum(durations*np.clip(fraction, 0, 1))/durations.sum()
+            if probability < q: a = middle
+            else: b = middle
+        result.append((a+b)/2)
+    return np.array(result)
+
+
+def cycle_span_from_pitch(times, hz):
+    """Diagnostic for slow descending ramps; markers avoid repetition-fit error."""
+    times, hz = np.asarray(times), np.asarray(hz)
+    if not np.isfinite(hz).all() or np.any(hz <= 0):
+        raise ValueError("Need positive finite pitch")
+    middle = sum(np.quantile(hz, [.25, .75]))/2
+    at = np.flatnonzero((hz[:-1] >= middle) & (hz[1:] < middle))
+    markers = times[at] + (middle-hz[at])/(hz[at+1]-hz[at])*(times[at+1]-times[at])
+    periods = np.diff(markers)
+    if len(periods) < 2 or np.any(periods < .5*np.median(periods)) or np.any(periods > 1.5*np.median(periods)):
+        raise ValueError("No stable descending-cycle markers")
+    start, end = markers[0], markers[-1]
+    window = np.r_[start, times[(times > start) & (times < end)], end]
+    pitch = np.interp(window, times, hz)
+    q = time_quantiles(window, pitch, [.05, .95])
+    return dict(span_cents=float(1200*np.log2(q[1]/q[0])),
+                pitch_quantiles_hz=q.tolist(), marker_midpoint_hz=float(middle),
+                window_start_seconds=float(start), window_end_seconds=float(end),
+                complete_periods=len(periods), marker_period_range_seconds=[float(periods.min()), float(periods.max())],
+                method="Measured descending mid-pitch markers; time-weighted continuous-trace percentiles. Diagnostic only, never a frozen acceptance target.")
+
+
+def cycle_span(y):
+    times = carrier_crossings(y)
+    return cycle_span_from_pitch((times[:-1]+times[1:])/2, 1/np.diff(times))
+
+
 def modulation_checks(renderer, folder, targets):
     rows = []
     baseline = round(targets["extraction"]["modulation_carrier_baseline_hz"]*65536)/65536
@@ -241,6 +291,7 @@ def phase_checks(renderer, folder, targets):
         case = dict(settings, phase1=carrier, phase3=source)
         y = render(renderer, folder, f"phase-{i}", **case)[48000:-24000]
         results.append(dict(settings=case, reference_source_sha256=expected["source_sha256"],
+                            cycle_diagnostic=cycle_span(y),
                             **modulation_result(slow_modulation(y, baseline), expected, targets)))
     return results
 

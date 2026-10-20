@@ -17,6 +17,18 @@ spec.loader.exec_module(checks)
 
 
 class MeasurementTests(unittest.TestCase):
+    def test_time_weighted_quantiles_and_observed_cycle_boundaries(self):
+        self.assertLess(max(abs(checks.time_quantiles([0, 1], [100, 200], [.05, .95]) - [105, 195])), 1e-10)
+        self.assertLess(max(abs(checks.time_quantiles([0, 1, 10], [100, 100, 100], [.05, .95]) - 100)), 1e-10)
+        times = np.arange(9.)
+        pitch = np.array([200, 100, 200, 100, 200, 100, 200, 100, 200])
+        result = checks.cycle_span_from_pitch(times, pitch)
+        self.assertEqual(result["complete_periods"], 3)
+        self.assertLess(abs(result["span_cents"] - 1200*np.log2(195/105)), 1e-9)
+        for t, values in (([0, 0], [1, 2]), ([0, 1], [1, float('nan')])):
+            with self.assertRaises(ValueError): checks.time_quantiles(t, values, [.5])
+        with self.assertRaises(ValueError): checks.cycle_span_from_pitch([0, 1, 2], [1, 1, 1])
+
     def test_harmonic_sign_and_dc(self):
         checks.self_check()
         t = np.arange(48000) / 48000

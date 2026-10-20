@@ -180,8 +180,32 @@ static void modulation_routing(void)
     assert(feedback.voice[2].phase != open.voice[2].phase);
 }
 
+static void carrier_phase_does_not_change_pitch(void)
+{
+    modeldigi_osc_state a, b;
+    modeldigi_osc_params p = defaults();
+    int32_t sample;
+    const uint64_t mask = (UINT64_C(1) << 48) - 1;
+    modeldigi_osc_init(&a); modeldigi_osc_init(&b);
+    b.voice[0].phase = UINT64_C(3) << 46;
+    a.voice[2].phase = b.voice[2].phase = UINT64_C(3) << 46;
+    /* Frozen slow-feedback condition in the engine's resolved integer units. */
+    p.frequency_q16_16[0] = 17154938;
+    p.frequency_q16_16[2] = 133659;
+    p.waveform[2] = 2;
+    p.modulation_depth_q16_16 = 29035;
+    p.modulation_enabled = p.osc3_control = true;
+    for (unsigned i = 0; i < 48000; ++i) {
+        uint64_t before_a = a.voice[0].phase, before_b = b.voice[0].phase;
+        modeldigi_osc_render(&a, &p, &sample, 1);
+        modeldigi_osc_render(&b, &p, &sample, 1);
+        assert(((a.voice[0].phase - before_a) & mask) == ((b.voice[0].phase - before_b) & mask));
+        assert(!memcmp(&a.voice[2], &b.voice[2], sizeof(a.voice[2])));
+    }
+}
+
 int main(void)
 {
-    splitting(); continuity(); bounds(); exact_controls(); bank_sum_and_pulse_edges(); modulation_routing();
+    splitting(); continuity(); bounds(); exact_controls(); bank_sum_and_pulse_edges(); modulation_routing(); carrier_phase_does_not_change_pitch();
     return 0;
 }
