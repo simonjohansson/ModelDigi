@@ -1,4 +1,4 @@
-"""Attribute the unchanged 8x cost image with digiemu's cycle clock.
+"""Attribute the cost image at one engine rate (default 4x) with digiemu's cycle clock.
 
 Run with mise's Python and the pinned digiemu environment, as for measure.py.
 Debug information must leave the loaded image unchanged. Every call's cycles
@@ -16,9 +16,9 @@ import sys
 import measure as cost
 
 
-def debug_build(folder, image):
+def debug_build(folder, image, factor):
     for name, source in [('oscillator', 'dsp/oscillator.c'), ('driver', 'tools/cost/driver.c')]:
-        cost.run('m68k-elf-gcc', *cost.CFLAGS, '-DMODELDIGI_OVERSAMPLE=8', '-g',
+        cost.run('m68k-elf-gcc', *cost.CFLAGS, '-DMODELDIGI_OVERSAMPLE=%d' % factor, '-g',
                  '-c', str(cost.ROOT / source), '-o', str(folder / (name + '-debug.o')))
     elf = folder / 'cost-debug.elf'
     libgcc = cost.run('m68k-elf-gcc', '-mcpu=54455', '-print-libgcc-file-name').strip()
@@ -141,20 +141,23 @@ def source_locations(elf, addresses):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--blocks', type=int, default=24)
-    parser.add_argument('--out', type=Path, default=cost.ROOT / 'out/profile-8x')
+    parser.add_argument('--factor', type=int, choices=(1, 2, 4, 8, 16), default=4)
+    parser.add_argument('--out', type=Path)
     args = parser.parse_args()
     if args.blocks < 1:
         parser.error('--blocks must be positive')
+    args.out = args.out or cost.ROOT / f'out/profile-{args.factor}x'
+    args.out.mkdir(parents=True, exist_ok=True)
     sys.path.insert(0, os.environ.get('DIGIEMU', str(cost.ROOT / 'vendor/digiemu')))
     from emu.cftiming import CycleClock
-    image, symbols, helpers = cost.build(8, args.out)
+    image, symbols, helpers = cost.build(args.factor, args.out)
     # ld's default _end is not guaranteed by the existing linker script.
     sizes = cost.run('m68k-elf-nm', '-S', str(args.out / 'cost.elf'))
     spans = [(int(p[0], 16), int(p[1], 16)) for line in sizes.splitlines()
              if len(p := line.split()) == 4 and p[3] in ('cost_output', 'cost_state', 'cost_params')]
     symbols['_end'] = max(address + size for address, size in spans)
     symbols['_ram_start'] = min(address for address, _ in spans)
-    debug = debug_build(args.out, image)
+    debug = debug_build(args.out, image, args.factor)
     plain, baseline = execute(image, symbols, args.blocks, CycleClock)
     calls, clock = execute(image, symbols, args.blocks, profile_clock_type())
     assert calls == plain, 'profiling changed call costs or rendered state'
@@ -168,7 +171,7 @@ def main():
                 for pc, cycles in counter.most_common() if cycles]
         profiles[category] = dict(cycles=sum(counter.values()), instructions=rows,
                                  blocks=[dict(pc=hex(pc), hits=n) for pc, n in clock.hits[category].most_common()])
-    report = dict(factor=8, blocks=args.blocks, helpers=helpers,
+    report = dict(factor=args.factor, blocks=args.blocks, helpers=helpers,
                   image_sha256=hashlib.sha256(image).hexdigest(), cycles=clock.cycles,
                   debug_image_identical=True, unprofiled_calls_identical=True,
                   decode_mismatches=clock.decode_mismatches, calls=calls, profiles=profiles)
