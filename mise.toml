@@ -117,7 +117,7 @@ description = "Estimate the oscillator bank's ColdFire cost per block with digie
 run = 'uv run --project vendor/digiemu python tools/cost/measure.py "$@"'
 
 [tasks."cost:profile"]
-description = "Profile the unchanged 8× engine and verify cycle/state equivalence"
+description = "Profile the engine at one rate (default 4×) and verify cycle/state equivalence"
 run = 'uv run --project vendor/digiemu python tools/cost/profile.py "$@"'
 
 [tasks."test:phase-sweep"]
