@@ -17,6 +17,15 @@ spec.loader.exec_module(checks)
 
 
 class MeasurementTests(unittest.TestCase):
+    def test_source_phases_cover_targets_and_lag_sign(self):
+        targets = json.loads(checks.TARGETS.read_text())
+        self.assertEqual(len(checks.source_phases(targets)), len(targets["modulation"]))
+        t = np.arange(8000) / 1000
+        ramp = 2 ** ((t * 2) % 1)
+        lead = 2 ** ((t * 2 + .04) % 1)
+        self.assertEqual(checks.trace_lag(ramp, lead, 500), -20)
+        self.assertEqual(checks.trace_lag(lead, ramp, 500), 20)
+
     def test_time_weighted_quantiles_and_observed_cycle_boundaries(self):
         self.assertLess(max(abs(checks.time_quantiles([0, 1], [100, 200], [.05, .95]) - [105, 195])), 1e-10)
         self.assertLess(max(abs(checks.time_quantiles([0, 1, 10], [100, 100, 100], [.05, .95]) - 100)), 1e-10)

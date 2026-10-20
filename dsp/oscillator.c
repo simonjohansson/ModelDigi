@@ -147,12 +147,7 @@ static int32_t control(unsigned shape, uint64_t phase)
         return phase >= width / 2 && phase < ONE - width / 2 ? Q : 0;
     }
     int32_t bias = shape == 0 ? 1751541 : shape == 2 ? -234881 : -409364;
-    int32_t body = -value(shape, phase) / 2;
-    /* Control-path gains fit only open-loop amounts .1/.5; other amounts and
-     * feedback cases are holdouts. Audio levels and control bias are unchanged. */
-    if (shape == 0) body = mul(body, 67176195);
-    if (shape == 2 || shape == 3) body = mul(body, 67354217);
-    return body + bias;
+    return -value(shape, phase) / 2 + bias;
 }
 
 static uint32_t modulate(uint32_t hz, int32_t octaves)

@@ -15,6 +15,7 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGETS = ROOT / "tests/reference/oscillator-targets-v1.json"
+PHASES = ROOT / "tests/reference/modulation-source-phases-v1.json"
 
 
 def read_pcm(path):
@@ -254,18 +255,89 @@ def cycle_span(y):
     return cycle_span_from_pitch((times[:-1]+times[1:])/2, 1/np.diff(times))
 
 
-def modulation_checks(renderer, folder, targets):
+def pitch_trace(y):
+    """Measured carrier frequency on a 1 kHz grid from the window start."""
+    times = carrier_crossings(y)
+    centers = (times[:-1]+times[1:])/2
+    return np.interp(np.arange(0, centers[-1], .001), centers, 1/np.diff(times))
+
+
+def trace_lag(reference, candidate, period):
+    """Lag in ms, within half a period, where reference(t) ~ candidate(t + lag)."""
+    segment = np.log2(reference[period:3*period])
+    costs = [np.var(segment - np.log2(candidate[period+lag:3*period+lag]))
+             for lag in range(-(period//2), period - period//2)]
+    return int(np.argmin(costs)) - period//2
+
+
+def modulation_window(renderer, folder, name, row, targets, source_phase):
+    """Render a recording's duration from a given source phase; analyse the same
+    window, excluding the first second and the last half second."""
+    feedback = row["feedback"]
+    baseline = round(targets["extraction"]["modulation_carrier_baseline_hz"]*65536)/65536
+    source = targets["extraction"]["modulation_source_unmodulated_hz"]["control_on" if feedback else "control_off"]
+    shape = targets["extraction"]["modulation_shape_to_global"][row["shape"]]
+    return render(renderer, folder, name, seconds=20 if feedback else 42, freq1=baseline, freq3=source, wave1=3,
+                  wave3=shape, depth=row["calibrated_depth_octaves"], mod=1, control=int(feedback),
+                  phase3=source_phase)[48000:-24000]
+
+
+def source_phases(targets):
+    data = json.loads(PHASES.read_text())
+    if data["target_sha256"] != sha256(TARGETS):
+        raise ValueError("Source phases belong to different targets")
+    phases = {case["source_sha256"]: case["source_phase_at_render_start"] for case in data["cases"]}
+    if set(phases) != {row["source_sha256"] for row in targets["modulation"]} or len(phases) != len(data["cases"]):
+        raise ValueError("Source phases must cover every frozen modulation case once")
+    if not all(0 <= phase < 1 for phase in phases.values()):
+        raise ValueError("Source phase outside 0..1")
+    return phases
+
+
+def derive_source_phases(renderer, folder, targets, files):
+    """Align the C source phase to each recording's own measured pitch trace."""
+    cases = []
+    for row in targets["modulation"]:
+        y = read_float_audio(files[row["source_sha256"]])[48000:-24000, 0]
+        reference = pitch_trace(y)
+        period = round(1000/row["modulation_hz"])
+        phase = 0.
+        for _ in range(8):
+            lag = trace_lag(reference, pitch_trace(modulation_window(renderer, folder, "phase-align", row, targets, phase)), period)
+            if abs(lag) <= 1:
+                break
+            phase = (phase + lag*row["modulation_hz"]/1000) % 1
+        else:
+            raise ValueError("Source phase alignment did not converge")
+        cases.append(dict(source_sha256=row["source_sha256"], shape=row["shape"], amount=row["amount"],
+                          feedback=row["feedback"], source_phase_at_render_start=round(phase, 6)))
+    return dict(target_sha256=sha256(TARGETS), cases=cases,
+                method="Initial oscillator-3 phase, in the C engine's convention, for a render of the "
+                       "recording's duration; iteratively shifted until the measured pitch trace in the "
+                       "analysed window is within 1 ms of the recording's. Carrier phase is not matched.")
+
+
+def phase_derivation_checks(derived):
+    committed = {case["source_sha256"]: case["source_phase_at_render_start"]
+                 for case in json.loads(PHASES.read_text())["cases"]}
+    rows = []
+    for case in derived["cases"]:
+        difference = (case["source_phase_at_render_start"] - committed[case["source_sha256"]] + .5) % 1 - .5
+        rows.append(dict(case, committed=committed[case["source_sha256"]], difference_cycles=difference,
+                         passed=abs(difference) <= .004))
+    return rows
+
+
+def modulation_checks(renderer, folder, targets, phases):
     rows = []
     baseline = round(targets["extraction"]["modulation_carrier_baseline_hz"]*65536)/65536
     for row in targets["modulation"]:
-        feedback = row["feedback"]
         shape = targets["extraction"]["modulation_shape_to_global"][row["shape"]]
-        source = targets["extraction"]["modulation_source_unmodulated_hz"]["control_on" if feedback else "control_off"]
-        y = render(renderer, folder, f"mod-shape{shape}-feedback{int(feedback)}-amount{row['amount']}",
-                   seconds=20 if feedback else 42, freq1=baseline, freq3=source, wave1=3, wave3=shape,
-                   depth=row["calibrated_depth_octaves"], mod=1, control=int(feedback))[48000:-24000]
+        phase = phases[row["source_sha256"]]
+        y = modulation_window(renderer, folder, f"mod-shape{shape}-feedback{int(row['feedback'])}-amount{row['amount']}",
+                              row, targets, phase)
         measured = slow_modulation(y, baseline)
-        rows.append(dict(shape=shape, amount=row["amount"], feedback=feedback,
+        rows.append(dict(shape=shape, amount=row["amount"], feedback=row["feedback"], source_phase=phase,
                          **modulation_result(measured, row, targets)))
     return rows
 
@@ -401,7 +473,7 @@ def main():
     parser.add_argument("--factor", type=int, choices=(1, 2, 4, 8, 16), default=8)
     parser.add_argument("--reference-dir", type=Path)
     parser.add_argument("--modulation", action="store_true", help="Also run all frozen slow-modulation cases")
-    parser.add_argument("--phase-sweep", action="store_true", help="Probe the near-limit feedback case at 33 carrier/source starts")
+    parser.add_argument("--phase-sweep", action="store_true", help="Probe reverse-saw feedback at 33 carrier/source starts")
     parser.add_argument("--compare", type=Path, help="Compare slow-modulation summaries with a half-rate report")
     args = parser.parse_args()
     self_check()
@@ -415,24 +487,30 @@ def main():
     alias = alias_checks(args.renderer.resolve(), args.out, targets, args.factor)
     frequencies = frequency_checks(args.renderer.resolve(), args.out, targets)
     local = local_checks(args.renderer.resolve(), args.out, targets, sources) if sources is not None else []
-    modulation = modulation_checks(args.renderer.resolve(), args.out, targets) if args.modulation else []
+    derivation = []
+    if args.modulation and sources is not None:
+        derived = derive_source_phases(args.renderer.resolve(), args.out, targets, sources)
+        (args.out / "modulation-source-phases.json").write_text(json.dumps(derived, indent=2) + "\n")
+        derivation = phase_derivation_checks(derived)
+    modulation = modulation_checks(args.renderer.resolve(), args.out, targets, source_phases(targets)) if args.modulation else []
     phase_sweep = phase_checks(args.renderer.resolve(), args.out, targets) if args.phase_sweep else []
     report = dict(target_sha256=hashlib.sha256(TARGETS.read_bytes()).hexdigest(),
                   renderer_sha256=hashlib.sha256(args.renderer.read_bytes()).hexdigest(),
                   source_sha256=sha256(ROOT / "dsp/oscillator.c"),
                   output_delay_samples=47*(1-1/args.factor),
-                  factor=args.factor, static=static, alias=alias, frequencies=frequencies, local=local, modulation=modulation, phase_sweep=phase_sweep,
+                  factor=args.factor, static=static, alias=alias, frequencies=frequencies, local=local,
+                  source_phase_derivation=derivation, modulation=modulation, phase_sweep=phase_sweep,
                   alias_method="Coherent 1-second spectrum; 20 Hz–20 kHz residual against static Fourier identities with documented polynomial-kernel/filter response, including harmonic-bin errors; 20–24 kHz transition band reported separately",
                   scope="Static shapes, resolved-frequency inputs and optional slow-modulation summaries; dynamic FM alias/refinement, device cost and firmware integration remain separate")
     if args.compare:
         report["refinement"] = refinement_checks(report, json.loads(args.compare.read_text()), targets)
     (args.out / "validation.json").write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
-    failures = [row for row in static + alias + frequencies + local + modulation + phase_sweep if not row["passed"]]
+    failures = [row for row in static + alias + frequencies + local + derivation + modulation + phase_sweep if not row["passed"]]
     if args.compare and not report["refinement"]["passed"]:
         failures.append(report["refinement"])
     for row in failures:
         print("FAIL:", row)
-    print(f"{'FAIL' if failures else 'PASS'}: {len(static)} frozen signed-shape, {len(alias)} static spectral, {len(frequencies)} frequency, {len(local)} local recording, {len(modulation)} slow-modulation and {len(phase_sweep)} phase-sweep cases")
+    print(f"{'FAIL' if failures else 'PASS'}: {len(static)} frozen signed-shape, {len(alias)} static spectral, {len(frequencies)} frequency, {len(local)} local recording, {len(derivation)} source-phase, {len(modulation)} slow-modulation and {len(phase_sweep)} phase-sweep cases")
     raise SystemExit(bool(failures))
 
 
