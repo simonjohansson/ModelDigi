@@ -2,8 +2,7 @@
 
 Research date: 2026-10-19. Scope: the oscillator section of the original
 Minimoog Model D, delivered as a source for the host instrument's existing
-track processing. This is research and a proposed implementation basis;
-ModelDigi's firmware still contains the silent scaffold.
+track processing. This is research and a proposed implementation basis.
 
 ## Scope and recommended reference
 

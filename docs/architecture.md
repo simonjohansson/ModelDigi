@@ -2,13 +2,13 @@
 
 ModelDigi separates the sound engine from device integration, following OB-1.
 The intended instrument is a Minimoog Model D clone. The oscillator bank is
-implemented for host testing. The Digitakt machine has its controls and their
-decoding; its audio stays silent until the bank is device-ready.
+implemented for host testing. The Digitakt machine runs a restricted timing
+trial: oscillator 1 at 8×, with oscillators 2/3 silent and modulation disabled.
 
 | Boundary | Responsibility |
 |---|---|
 | Shared oscillator bank | Three continuously running phases, seven waveforms, linear source levels and conditional exponential oscillator-3 modulation. Caller-owned state; 48 kHz mono Q31 output; no firmware or UI dependencies. |
-| Device audio adapter | Produce one 32-sample signed 32-bit block, currently all zeros. |
+| Device audio adapter | Produce one 32-sample signed 32-bit block from oscillator 1 during the timing trial. |
 | Digitakt integration | Register the machine, describe its two SRC pages, decode stored values and the trig note into bank parameters, and fill only its tracks' audio blocks. |
 | Digitone integration | Reserved for a future port; no implementation yet. |
 | Elekloader Core and machine-pages | Firmware exports, machine registration, render dispatch and SRC page behavior. |
@@ -18,6 +18,10 @@ The Digitakt callback inspects eight tracks and replaces only ModelDigi
 blocks, leaving other tracks untouched. It uses the SDK render event and
 contains no private firmware addresses or extra patch sites. Audio callbacks
 must remain bounded and must not allocate, perform I/O or wait.
+Each track owns its bank state, initialized when entering ModelDigi and kept
+across trigs, note changes and source muting. Oscillators 2/3 still advance
+their clocks while inaudible. The trial restriction changes neither their
+stored control meanings nor the shared engine's behavior.
 
 ## Digitakt controls
 
