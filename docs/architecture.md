@@ -3,7 +3,7 @@
 ModelDigi separates the sound engine from device integration, following OB-1.
 The intended instrument is a Minimoog Model D clone. The oscillator bank is
 implemented for host testing. The Digitakt machine runs a restricted timing
-trial: oscillator 1 at 8×, with oscillators 2/3 silent and modulation disabled.
+trial: oscillator 1 at the production 4× rate, with oscillators 2/3 silent and modulation disabled.
 
 | Boundary | Responsibility |
 |---|---|
@@ -26,7 +26,7 @@ stored control meanings nor the shared engine's behavior.
 Each bank also owns 768 bytes of transient workspace for 64 internal mix
 samples and modulation factors. Rendering reuses that memory without heap
 allocation or shared scratch. It processes eight output frames per chunk at
-8× and four at 16× refinement, keeping the workspace capacity fixed. This
+4× and 8×, and four at 16×, keeping the workspace capacity fixed. This
 keeps bulk buffers off the audio callback's interrupted task stack.
 Initialization resets only persistent oscillator and filter state; workspace
 is overwritten before use. Exact state comparisons cover the persistent

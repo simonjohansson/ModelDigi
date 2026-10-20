@@ -107,9 +107,9 @@ run = 'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/c
 description = "Double the same C engine's rate and compare all slow-modulation cases"
 depends = ["build:renderer"]
 run = [
-  "cc -std=c99 -O2 -Wall -Wextra -Werror -DMODELDIGI_OVERSAMPLE=16 dsp/oscillator.c tools/render.c -lm -o out/render-16",
-  'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_oscillators.py --modulation --out out/refinement-8',
-  'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_oscillators.py --modulation --factor 16 --renderer out/render-16 --out out/refinement-16 --compare out/refinement-8/validation.json',
+  "cc -std=c99 -O2 -Wall -Wextra -Werror -DMODELDIGI_OVERSAMPLE=8 dsp/oscillator.c tools/render.c -lm -o out/render-8",
+  'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_oscillators.py --modulation --out out/refinement-4',
+  'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_oscillators.py --modulation --factor 8 --renderer out/render-8 --out out/refinement-8 --compare out/refinement-4/validation.json',
 ]
 
 [tasks.cost]

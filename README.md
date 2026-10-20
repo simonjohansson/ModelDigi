@@ -3,7 +3,7 @@
 A future Minimoog Model D clone for Elektron machines. The shared C oscillator
 bank runs in a host renderer against frozen reference targets. Device firmware
 has the machine and its two control pages. The current Digitakt trial renders
-oscillator 1 at 8×, with oscillators 2/3 silent and modulation disabled.
+oscillator 1 at the production 4× rate, with oscillators 2/3 silent and modulation disabled.
 
 The layout follows OB-1:
 

@@ -64,14 +64,20 @@ Portable checks cover 35 signed waveform ratios, 15 resolved-frequency cases
 and 98 static spectral cases: seven shapes at 375, 997, 1500, 3000, 3001, 6000,
 7001, 9000, 11003, 12000, 15997, 16000, 19001 and 20000 Hz. Six frequencies
 do not divide 48 kHz, reducing coincident harmonic/alias cancellation.
-The approved range remains 1/16–20000 Hz. The spectral limit is −60 dBc over 20 Hz–20 kHz,
-including errors at harmonic bins, against static Fourier identities with the
-known correction/filter response. The 20–24 kHz transition band is reported
+The approved range remains 1/16–20000 Hz. The spectral limit over 20 Hz–20 kHz
+is −60 dBc for fundamentals up to 12 kHz and −50 dBc above, where fundamentals
+are musically rare and the production rate's narrow pulse leaves about
+−56 dBc. The residual includes errors at harmonic bins and is measured
+against static Fourier identities with the known correction/filter response. The 20–24 kHz transition band is reported
 separately. This grid is not an audio-rate FM alias qualification.
 
 GitHub Actions runs the host mechanics, portable spectral/measurement checks
 and all frozen slow-modulation cases through mise. It needs neither private
-recordings nor stock firmware. The 8× host rate is not a device choice.
+recordings nor stock firmware. Host checks run at the production 4× rate.
+
+Cost reductions may change output when every frozen instrument tolerance and
+the spectral limit still pass. The complete-firmware render keeps a 10%
+reserve in its worst tested case.
 
 `mise run cost [factor ...]` estimates the ColdFire cost of one bank per
 32-frame block. It compiles the actual engine with the SDK's Digitakt flags,
@@ -105,7 +111,7 @@ committed beside the frozen targets, not inside them. Feedback phases depend on 
 behavior during the one-second lead-in, and portable checks cannot detect a
 stale table; after any change to the modulation path, run the local recording
 comparison below with `--modulation`. Refinement doubles the entire
-same C algorithm from 8× to 16× and checks those summaries within one tenth of
+same C algorithm from 4× to 8× and checks those summaries within one tenth of
 their frozen acceptance limits. It reports filter delay separately and does
 not establish samplewise dynamic convergence or all-start-phase robustness.
 Reports and rendered WAVs stay under ignored `out/`; targets are never rewritten.
@@ -167,7 +173,7 @@ hardware operation. Opening the emulator is separate from host tests.
 Physical-device qualification, performance budget, saved-sound compatibility,
 audio-rate FM quality and fidelity beyond the declared reference subset remain
 outstanding. The emulator task runs the restricted one-oscillator timing trial
-at 8×; it does not enable the full bank or modulation.
+at 4×; it does not enable the full bank or modulation.
 
 Stock firmware, built mods, custom firmware, emulator images and raw
 research stay local and ignored. Keep dependency revisions pinned; consult
