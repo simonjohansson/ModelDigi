@@ -41,6 +41,8 @@ Research documents may be committed and merged when they provide lasting, low-le
 - Write commit messages that conform to Tim Pope's standards, without emojis.
 - Never use `git -C`; run Git commands from the intended working directory.
 - Use `git worktree add` for feature branches, never `git checkout -b`.
+- Keep future `main` history linear: squash-merge PRs and rebase feature branches when updating them from `main`. Do not rewrite published history.
+- Delete merged branch references after merging. Preserve active branches and local research, firmware and measurement evidence when cleaning up worktrees.
 - Inspect existing patterns first and mirror their boundaries. Keep changes scoped to the explicit request.
 - If instructions are ambiguous or conflict, stop and ask before implementing.
 - Treat established public and stable boundaries as off-limits unless explicitly requested.
