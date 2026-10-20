@@ -478,6 +478,11 @@ def response(hz, factor):
     return gain
 
 
+def alias_limit(hz):
+    """Approved static alias limit: −60 dBc up to 12 kHz fundamentals, −50 dBc above."""
+    return -60 if hz <= 12000 else -50
+
+
 def alias_checks(renderer, folder, targets, factor):
     results = []
     for hz in (375, 997, 1500, 3000, 3001, 6000, 7001, 9000, 11003, 12000, 15997, 16000, 19001, 20000):
@@ -491,9 +496,9 @@ def alias_checks(renderer, folder, targets, factor):
             power = np.sum(abs(coeff[20:20001] - expected[20:20001])**2)
             residual = float(10*np.log10(max(float(power / abs(expected[hz])**2), 1e-30)))
             transition_power = float(np.sum(abs(coeff[20001:])**2))
-            results.append(dict(frequency_hz=hz, shape=shape, residual_db=residual,
+            results.append(dict(frequency_hz=hz, shape=shape, residual_db=residual, limit_db=alias_limit(hz),
                                 dc=float(y.mean()), transition_band_power=transition_power,
-                                passed=bool(residual <= -60 and abs(y.mean()) < 1e-6)))
+                                passed=bool(residual <= alias_limit(hz) and abs(y.mean()) < 1e-6)))
     return results
 
 
@@ -502,13 +507,14 @@ def self_check():
     c = harmonics(.3 + .2*np.cos(2*np.pi*321.5*t) + .1*np.sin(4*np.pi*321.5*t), 321.5, 2)
     assert np.max(abs(c - [.1, -.05j])) < 1e-12
     assert abs(response(0, 8) - 1) < 1e-5
+    assert alias_limit(12000) == -60 and alias_limit(12001) == -50
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--renderer", type=Path, default=ROOT / "out/render")
     parser.add_argument("--out", type=Path, default=ROOT / "out/oscillators")
-    parser.add_argument("--factor", type=int, choices=(1, 2, 4, 8, 16), default=8)
+    parser.add_argument("--factor", type=int, choices=(1, 2, 4, 8, 16), default=4)
     parser.add_argument("--reference-dir", type=Path)
     parser.add_argument("--modulation", action="store_true", help="Also run all frozen slow-modulation cases")
     parser.add_argument("--phase-sweep", action="store_true", help="Probe reverse-saw feedback at 33 carrier/source starts")

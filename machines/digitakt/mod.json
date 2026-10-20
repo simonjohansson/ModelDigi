@@ -10,7 +10,7 @@
  "os": "1.53",
  "ports": {"1.54": {}},
  "sources": ["modeldigi.c", "controls.c", "../../dsp/oscillator.c"],
- "cflags": ["-DMODELDIGI_OVERSAMPLE=8"],
+ "cflags": ["-DMODELDIGI_OVERSAMPLE=4"],
  "machines": [{"id": 42, "descriptor": "modeldigi_machine"}],
  "subscribe": [{"event": "ev_render_voices", "fn": "modeldigi_digitakt_render", "order": 20}],
  "requires": ["core", "machine-pages"],

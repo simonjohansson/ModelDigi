@@ -3,7 +3,7 @@
 
 /* Host refinement changes the complete engine rate; no public quality control. */
 #ifndef MODELDIGI_OVERSAMPLE
-#define MODELDIGI_OVERSAMPLE 8
+#define MODELDIGI_OVERSAMPLE 4
 #endif
 #if MODELDIGI_OVERSAMPLE != 1 && MODELDIGI_OVERSAMPLE != 2 && MODELDIGI_OVERSAMPLE != 4 && MODELDIGI_OVERSAMPLE != 8 && MODELDIGI_OVERSAMPLE != 16
 #error "MODELDIGI_OVERSAMPLE must be 1, 2, 4, 8 or 16"
