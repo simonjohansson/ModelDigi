@@ -82,6 +82,24 @@ their frozen acceptance limits. It reports filter delay separately and does
 not establish samplewise dynamic convergence or all-start-phase robustness.
 Reports and rendered WAVs stay under ignored `out/`; targets are never rewritten.
 
+For start-phase diagnostics, the host renderer accepts `phase1`, `phase2` and
+`phase3` in cycles, from 0 inclusive to 1 exclusive. Omitted values retain the
+engine's initialization exactly; overrides affect only the host tool's initial
+scratch state and add no device or shared-engine control.
+
+`mise run test:phase-sweep` probes the near-limit reverse-saw feedback case at
+amount 0.5: four carrier phases × eight source phases, plus the canonical start.
+It uses the unchanged frozen span and both mean limits and exits unsuccessfully
+if any probe fails. This extends beyond the original single-start condition;
+it is an explicit qualification diagnostic and is not part of the default CI
+suite. Use `--renderer`, `--factor` and a separate `--out` to repeat with a
+higher-rate build of the same C engine.
+
+Finite-window pitch-span percentiles can depend on the source phase even in a
+steady signal. Keep that estimator sensitivity separate from reference error
+and rate-refinement error. A complete-period span is useful diagnostically,
+but must not replace the frozen extractor or its targets without review.
+
 For a local recording comparison, point explicitly at the retained evidence:
 
 ```sh

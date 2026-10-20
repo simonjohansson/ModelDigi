@@ -72,10 +72,21 @@ class MeasurementTests(unittest.TestCase):
     def test_renderer_rejects_invalid_settings_before_writing(self):
         with tempfile.TemporaryDirectory() as name:
             path = Path(name) / "invalid.wav"
-            for setting in ("seconds=nan", "seconds=0", "seconds=0.00000001", "freq1=inf", "freq1=20001", "wave1=3x", "wave1=9", "level1=-1", "unknown=1"):
+            for setting in ("seconds=nan", "seconds=0", "seconds=0.00000001", "freq1=inf", "freq1=20001", "wave1=3x", "wave1=9", "level1=-1", "phase1=1", "phase2=-.1", "phase3=nan", "unknown=1"):
                 run = subprocess.run([str(ROOT / "out/render"), str(path), setting], capture_output=True)
                 self.assertEqual(run.returncode, 2, setting)
                 self.assertFalse(path.exists())
+
+    def test_host_phase_override_preserves_default_and_quarter_cycle(self):
+        with tempfile.TemporaryDirectory() as name:
+            folder = Path(name)
+            dry = checks.render(ROOT / "out/render", folder, "dry", seconds=2, freq1=375)
+            same = checks.render(ROOT / "out/render", folder, "same", seconds=2, freq1=375, phase1=0)
+            shifted = checks.render(ROOT / "out/render", folder, "shifted", seconds=2, freq1=375, phase1=.25)
+            self.assertTrue(np.array_equal(dry, same))
+            a = checks.harmonics(dry[48000:], 375, 1)[0]
+            b = checks.harmonics(shifted[48000:], 375, 1)[0]
+            self.assertLess(abs(b/a - 1j), 1e-5)
 
     def test_float_wav_validation(self):
         with tempfile.TemporaryDirectory() as name:

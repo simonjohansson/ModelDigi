@@ -215,13 +215,34 @@ def modulation_checks(renderer, folder, targets):
                    seconds=20 if feedback else 42, freq1=baseline, freq3=source, wave1=3, wave3=shape,
                    depth=row["calibrated_depth_octaves"], mod=1, control=int(feedback))[48000:-24000]
         measured = slow_modulation(y, baseline)
-        errors = {key: measured[key] - row[key] for key in ("pitch_span_cents", "cents_of_mean_frequency", "time_mean_pitch_cents")}
-        passed = abs(errors["pitch_span_cents"]) <= targets["tolerances"]["modulation_span_cents"]
-        passed &= abs(errors["cents_of_mean_frequency"]) <= targets["tolerances"]["modulation_cents_of_mean_frequency"]
-        passed &= abs(errors["time_mean_pitch_cents"]) <= targets["tolerances"]["modulation_time_mean_pitch_cents"]
         rows.append(dict(shape=shape, amount=row["amount"], feedback=feedback,
-                         measured=measured, errors=errors, passed=bool(passed)))
+                         **modulation_result(measured, row, targets)))
     return rows
+
+
+def modulation_result(measured, expected, targets):
+    errors = {key: measured[key] - expected[key] for key in ("pitch_span_cents", "cents_of_mean_frequency", "time_mean_pitch_cents")}
+    limits = targets["tolerances"]
+    passed = abs(errors["pitch_span_cents"]) <= limits["modulation_span_cents"]
+    passed &= abs(errors["cents_of_mean_frequency"]) <= limits["modulation_cents_of_mean_frequency"]
+    passed &= abs(errors["time_mean_pitch_cents"]) <= limits["modulation_time_mean_pitch_cents"]
+    return dict(measured=measured, errors=errors, passed=bool(passed))
+
+
+def phase_checks(renderer, folder, targets):
+    expected = next(r for r in targets["modulation"] if r["shape"] == 1 and r["amount"] == .5 and r["feedback"])
+    baseline = round(targets["extraction"]["modulation_carrier_baseline_hz"]*65536)/65536
+    settings = dict(seconds=20, freq1=baseline,
+                    freq3=targets["extraction"]["modulation_source_unmodulated_hz"]["control_on"],
+                    wave1=3, wave3=2, depth=expected["calibrated_depth_octaves"], mod=1, control=1)
+    phases = [(0., 2/3)] + [(carrier/4, source/8) for carrier in range(4) for source in range(8)]
+    results = []
+    for i, (carrier, source) in enumerate(phases):
+        case = dict(settings, phase1=carrier, phase3=source)
+        y = render(renderer, folder, f"phase-{i}", **case)[48000:-24000]
+        results.append(dict(settings=case, reference_source_sha256=expected["source_sha256"],
+                            **modulation_result(slow_modulation(y, baseline), expected, targets)))
+    return results
 
 
 def refinement_checks(current, previous, targets):
@@ -329,6 +350,7 @@ def main():
     parser.add_argument("--factor", type=int, choices=(1, 2, 4, 8, 16), default=8)
     parser.add_argument("--reference-dir", type=Path)
     parser.add_argument("--modulation", action="store_true", help="Also run all frozen slow-modulation cases")
+    parser.add_argument("--phase-sweep", action="store_true", help="Probe the near-limit feedback case at 33 carrier/source starts")
     parser.add_argument("--compare", type=Path, help="Compare slow-modulation summaries with a half-rate report")
     args = parser.parse_args()
     self_check()
@@ -343,22 +365,23 @@ def main():
     frequencies = frequency_checks(args.renderer.resolve(), args.out, targets)
     local = local_checks(args.renderer.resolve(), args.out, targets, sources) if sources is not None else []
     modulation = modulation_checks(args.renderer.resolve(), args.out, targets) if args.modulation else []
+    phase_sweep = phase_checks(args.renderer.resolve(), args.out, targets) if args.phase_sweep else []
     report = dict(target_sha256=hashlib.sha256(TARGETS.read_bytes()).hexdigest(),
                   renderer_sha256=hashlib.sha256(args.renderer.read_bytes()).hexdigest(),
                   source_sha256=sha256(ROOT / "dsp/oscillator.c"),
                   output_delay_samples=47*(1-1/args.factor),
-                  factor=args.factor, static=static, alias=alias, frequencies=frequencies, local=local, modulation=modulation,
+                  factor=args.factor, static=static, alias=alias, frequencies=frequencies, local=local, modulation=modulation, phase_sweep=phase_sweep,
                   alias_method="Coherent 1-second spectrum; 20 Hz–20 kHz residual against static Fourier identities with documented polynomial-kernel/filter response, including harmonic-bin errors; 20–24 kHz transition band reported separately",
                   scope="Static shapes, resolved-frequency inputs and optional slow-modulation summaries; dynamic FM alias/refinement, device cost and firmware integration remain separate")
     if args.compare:
         report["refinement"] = refinement_checks(report, json.loads(args.compare.read_text()), targets)
     (args.out / "validation.json").write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
-    failures = [row for row in static + alias + frequencies + local + modulation if not row["passed"]]
+    failures = [row for row in static + alias + frequencies + local + modulation + phase_sweep if not row["passed"]]
     if args.compare and not report["refinement"]["passed"]:
         failures.append(report["refinement"])
     for row in failures:
         print("FAIL:", row)
-    print(f"{'FAIL' if failures else 'PASS'}: {len(static)} frozen signed-shape, {len(alias)} static spectral, {len(frequencies)} frequency, {len(local)} local recording and {len(modulation)} slow-modulation cases")
+    print(f"{'FAIL' if failures else 'PASS'}: {len(static)} frozen signed-shape, {len(alias)} static spectral, {len(frequencies)} frequency, {len(local)} local recording, {len(modulation)} slow-modulation and {len(phase_sweep)} phase-sweep cases")
     raise SystemExit(bool(failures))
 
 
