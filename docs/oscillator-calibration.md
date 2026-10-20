@@ -113,7 +113,14 @@ squared span error through the origin using only open-loop amounts 0.1/0.5;
 other amounts and every feedback condition remain holdouts. Audio coefficients,
 pulse control values, frozen observations and tolerances stay unchanged.
 All 48 slow cases pass, but reverse-saw feedback at amount 0.5 is close to the
-3-cent span limit. Multiple start phases and audio-rate FM remain unqualified.
+3-cent span limit. Removing both gains makes five open-loop cases fail by up
+to 7.4 cents: triangle at amount 1 and both saw directions at 0.75/1. The gains
+improve these held-out depths while worsening reverse-saw feedback at 0.5 to
+about +2.98 cents, leaving only 0.02 cents of margin. Opposite open-loop and
+feedback residuals remain an unresolved reference/feedback-path mismatch; a
+single gain does not remove it. The cause is not uniquely identified. Multiple
+start phases and audio-rate FM remain unqualified. Do not refit the feedback
+holdout or weaken the frozen targets to hide this mismatch.
 
 There are 36 new open-loop depth observations: six shapes at amounts 0.05,
 0.1, 0.25, 0.5, 0.75 and 1, plus six zero-depth controls. The recorded amount

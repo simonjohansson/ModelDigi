@@ -5,10 +5,6 @@
 #include <string.h>
 #include "../dsp/oscillator.h"
 
-#ifndef MODELDIGI_OVERSAMPLE
-#define MODELDIGI_OVERSAMPLE 8
-#endif
-
 static modeldigi_osc_params defaults(void)
 {
     modeldigi_osc_params p = {0};
@@ -60,10 +56,12 @@ static void continuity(void)
     modeldigi_osc_render(&b, &p, restored, 1024);
     /* The decimator's finite tail must settle without a phase reset. */
     assert(!memcmp(samples + 256, restored + 256, 768 * sizeof(*samples)));
-    uint64_t phase = a.voice[0].phase;
+    b = a;
+    muted = p;
     p.waveform[0] = 6;
     modeldigi_osc_render(&a, &p, samples, 1);
-    assert(a.voice[0].phase == ((phase + a.voice[0].increment * MODELDIGI_OVERSAMPLE) & ((UINT64_C(1) << 48) - 1)));
+    modeldigi_osc_render(&b, &muted, restored, 1);
+    assert(a.voice[0].phase == b.voice[0].phase);
     modeldigi_osc_init(&a); modeldigi_osc_init(&b);
     p = defaults(); muted = p;
     p.modulation_enabled = muted.modulation_enabled = true;
@@ -101,7 +99,7 @@ static void bounds(void)
             assert(magnitude <= 1076291389); /* -6 dBFS */
         }
     }
-    printf("PASS: oscillator factor %d split/state/mute/bounds; tested transition peak %.6f FS\n", MODELDIGI_OVERSAMPLE, peak / 2147483648.0);
+    printf("PASS: oscillator split/state/mute/bounds; tested transition peak %.6f FS\n", peak / 2147483648.0);
 }
 
 static void exact_controls(void)

@@ -298,7 +298,7 @@ def response(hz, factor):
 
 def alias_checks(renderer, folder, targets, factor):
     results = []
-    for hz in (375, 1500, 3000, 6000, 9000, 12000, 16000, 20000):
+    for hz in (375, 997, 1500, 3000, 3001, 6000, 7001, 9000, 11003, 12000, 15997, 16000, 19001, 20000):
         for shape in range(7):
             y = render(renderer, folder, f"alias-shape{shape}-hz{hz}", seconds=2, freq1=hz, wave1=shape)[48000:96000]
             coeff = np.fft.rfft(y) / len(y)

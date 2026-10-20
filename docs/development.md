@@ -61,11 +61,19 @@ Source 3 defaults to a slow rate and has zero audio level. All three clocks run
 even at zero level. Caller-owned bank state must persist across notes.
 
 Portable checks cover 35 signed waveform ratios, 15 resolved-frequency cases
-and 56 static spectral cases: seven shapes at 375, 1500, 3000, 6000, 9000,
-12000, 16000 and 20000 Hz. The spectral limit is −60 dBc over 20 Hz–20 kHz,
+and 98 static spectral cases: seven shapes at 375, 997, 1500, 3000, 3001, 6000,
+7001, 9000, 11003, 12000, 15997, 16000, 19001 and 20000 Hz. Six frequencies
+do not divide 48 kHz, reducing coincident harmonic/alias cancellation.
+The approved range remains 1/16–20000 Hz. The spectral limit is −60 dBc over 20 Hz–20 kHz,
 including errors at harmonic bins, against static Fourier identities with the
 known correction/filter response. The 20–24 kHz transition band is reported
 separately. This grid is not an audio-rate FM alias qualification.
+
+GitHub Actions runs the host mechanics, portable spectral/measurement checks
+and all frozen slow-modulation cases through mise. It needs neither private
+recordings nor stock firmware. The 8× rate remains provisional for device use:
+64-bit arithmetic helpers and filter indexing need complete-render timing on
+two realistic instances before choosing or optimizing a device rate.
 
 The modulation task adds all 48 frozen slow-modulation cases, preserving span,
 cents of mean frequency and time-averaged cents. Refinement doubles the entire
