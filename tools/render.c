@@ -14,13 +14,15 @@ int main(int argc, char **argv)
 {
     modeldigi_osc_params p = {0};
     modeldigi_osc_state s;
+    uint64_t initial_phase[3] = {0};
+    bool phase_set[3] = {false};
     double seconds = 3;
     p.frequency_q16_16[0] = p.frequency_q16_16[1] = 440 * 65536;
     p.frequency_q16_16[2] = 33564;
     p.waveform[0] = p.waveform[1] = 3;
     p.level[0] = 65535;
     if (argc < 2) {
-        fprintf(stderr, "usage: render OUT.wav [seconds=3 freq1=440 freq2=440 freq3=.512 wave1=3 wave2=3 wave3=0 level1=1 level2=0 level3=0 depth=0 mod=0 control=0]\n");
+        fprintf(stderr, "usage: render OUT.wav [seconds=3 freq1=440 freq2=440 freq3=.512 wave1=3 wave2=3 wave3=0 level1=1 level2=0 level3=0 depth=0 mod=0 control=0 phaseN=CYCLES]\n");
         return 2;
     }
     for (int i = 2; i < argc; ++i) {
@@ -39,6 +41,10 @@ int main(int argc, char **argv)
             if (!strcmp(key, "freq") && value >= .0625 && value <= 20000) p.frequency_q16_16[v] = (uint32_t)llround(value * 65536);
             else if (!strcmp(key, "wave") && value >= 0 && value <= 6 && value == floor(value)) p.waveform[v] = (uint8_t)value;
             else if (!strcmp(key, "level") && value >= 0 && value <= 1) p.level[v] = (uint16_t)llround(value * 65535);
+            else if (!strcmp(key, "phase") && value >= 0 && value < 1) {
+                initial_phase[v] = (uint64_t)(value * (double)(UINT64_C(1) << 48));
+                phase_set[v] = true;
+            }
             else goto invalid;
         }
         continue;
@@ -56,6 +62,9 @@ invalid:
     fputc(4, file); fputc(0, file); fputc(32, file); fputc(0, file);
     fputs("data", file); put32(file, 4 * frames);
     modeldigi_osc_init(&s);
+    /* Host diagnostics override only initial phase; the engine API is unchanged. */
+    for (unsigned v = 0; v < 3; ++v)
+        if (phase_set[v]) s.voice[v].phase = initial_phase[v];
     for (uint32_t at = 0; at < frames;) {
         int32_t block[32];
         unsigned count = frames - at < 32 ? frames - at : 32;

@@ -15,6 +15,7 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGETS = ROOT / "tests/reference/oscillator-targets-v1.json"
+PHASES = ROOT / "tests/reference/modulation-source-phases-v1.json"
 
 
 def read_pcm(path):
@@ -204,24 +205,180 @@ def slow_modulation(y, baseline):
                 complete_periods=periods)
 
 
-def modulation_checks(renderer, folder, targets):
+def time_quantiles(times, values, quantiles):
+    """Time-weighted quantiles of a linearly interpolated measured trace."""
+    times, values = np.asarray(times), np.asarray(values)
+    if len(times) != len(values) or len(times) < 2 or not np.isfinite(times).all() or not np.isfinite(values).all() or np.any(np.diff(times) <= 0):
+        raise ValueError("Need finite values at increasing times")
+    durations = np.diff(times)
+    low = np.minimum(values[:-1], values[1:])
+    width = abs(np.diff(values))
+    result = []
+    for q in quantiles:
+        if not 0 <= q <= 1:
+            raise ValueError("Quantile outside 0..1")
+        a, b = float(values.min()), float(values.max())
+        for _ in range(48):
+            middle = (a+b)/2
+            fraction = np.divide(middle-low, width, out=(middle >= low).astype(float), where=width > 0)
+            probability = np.sum(durations*np.clip(fraction, 0, 1))/durations.sum()
+            if probability < q: a = middle
+            else: b = middle
+        result.append((a+b)/2)
+    return np.array(result)
+
+
+def cycle_span_from_pitch(times, hz):
+    """Diagnostic for slow descending ramps; markers avoid repetition-fit error."""
+    times, hz = np.asarray(times), np.asarray(hz)
+    if not np.isfinite(hz).all() or np.any(hz <= 0):
+        raise ValueError("Need positive finite pitch")
+    middle = sum(np.quantile(hz, [.25, .75]))/2
+    at = np.flatnonzero((hz[:-1] >= middle) & (hz[1:] < middle))
+    markers = times[at] + (middle-hz[at])/(hz[at+1]-hz[at])*(times[at+1]-times[at])
+    periods = np.diff(markers)
+    if len(periods) < 2 or np.any(periods < .5*np.median(periods)) or np.any(periods > 1.5*np.median(periods)):
+        raise ValueError("No stable descending-cycle markers")
+    start, end = markers[0], markers[-1]
+    window = np.r_[start, times[(times > start) & (times < end)], end]
+    pitch = np.interp(window, times, hz)
+    q = time_quantiles(window, pitch, [.05, .95])
+    return dict(span_cents=float(1200*np.log2(q[1]/q[0])),
+                pitch_quantiles_hz=q.tolist(), marker_midpoint_hz=float(middle),
+                window_start_seconds=float(start), window_end_seconds=float(end),
+                complete_periods=len(periods), marker_period_range_seconds=[float(periods.min()), float(periods.max())],
+                method="Measured descending mid-pitch markers; time-weighted continuous-trace percentiles. Diagnostic only, never a frozen acceptance target.")
+
+
+def cycle_span(y):
+    times = carrier_crossings(y)
+    return cycle_span_from_pitch((times[:-1]+times[1:])/2, 1/np.diff(times))
+
+
+def pitch_trace(y):
+    """Measured carrier frequency on a 1 kHz grid from the window start."""
+    times = carrier_crossings(y)
+    centers = (times[:-1]+times[1:])/2
+    return np.interp(np.arange(0, centers[-1], .001), centers, 1/np.diff(times))
+
+
+def trace_lag(reference, candidate, period, start=None):
+    """Lag in ms, within half a period, where reference(t) ~ candidate(t + lag),
+    over two periods from start (default: one period into the window)."""
+    start = period if start is None else start
+    segment = np.log2(reference[start:start+2*period])
+    costs = [np.var(segment - np.log2(candidate[start+lag:start+2*period+lag]))
+             for lag in range(-(period//2), period - period//2)]
+    return int(np.argmin(costs)) - period//2
+
+
+def modulation_window(renderer, folder, name, row, targets, source_phase):
+    """Render a recording's duration from a given source phase; analyse the same
+    window, excluding the first second and the last half second."""
+    feedback = row["feedback"]
+    baseline = round(targets["extraction"]["modulation_carrier_baseline_hz"]*65536)/65536
+    source = targets["extraction"]["modulation_source_unmodulated_hz"]["control_on" if feedback else "control_off"]
+    shape = targets["extraction"]["modulation_shape_to_global"][row["shape"]]
+    return render(renderer, folder, name, seconds=20 if feedback else 42, freq1=baseline, freq3=source, wave1=3,
+                  wave3=shape, depth=row["calibrated_depth_octaves"], mod=1, control=int(feedback),
+                  phase3=source_phase)[48000:-24000]
+
+
+def source_phases(targets):
+    data = json.loads(PHASES.read_text())
+    if data["target_sha256"] != sha256(TARGETS):
+        raise ValueError("Source phases belong to different targets")
+    cases = {case["source_sha256"]: case for case in data["cases"]}
+    if set(cases) != {row["source_sha256"] for row in targets["modulation"]} or len(cases) != len(data["cases"]):
+        raise ValueError("Source phases must cover every frozen modulation case once")
+    if not all(0 <= case["source_phase_at_render_start"] < 1 for case in cases.values()):
+        raise ValueError("Source phase outside 0..1")
+    return cases
+
+
+def derive_source_phases(renderer, folder, targets, files):
+    """Align the C source phase to each recording's own measured pitch trace."""
+    cases = []
+    for row in targets["modulation"]:
+        y = read_float_audio(files[row["source_sha256"]])[48000:-24000, 0]
+        reference = pitch_trace(y)
+        period = round(1000/row["modulation_hz"])
+        phase = 0.
+        for _ in range(8):
+            candidate = pitch_trace(modulation_window(renderer, folder, "phase-align", row, targets, phase))
+            lag = trace_lag(reference, candidate, period)
+            if abs(lag) <= 1:
+                break
+            phase = (phase + lag*row["modulation_hz"]/1000) % 1
+        else:
+            raise ValueError("Source phase alignment did not converge")
+        # Measured, never corrected: the same lag over the last two complete periods.
+        end = min(len(reference), len(candidate)) - 3*period
+        end_lag = trace_lag(reference, candidate, period, end)
+        cases.append(dict(source_sha256=row["source_sha256"], shape=row["shape"], amount=row["amount"],
+                          feedback=row["feedback"], source_phase_at_render_start=round(phase, 6),
+                          initial_lag_ms=lag, end_lag_ms=end_lag, drift_interval_seconds=(end-period)/1000,
+                          candidate_rate_difference_percent=round(-100*(end_lag-lag)/(end-period), 4)))
+    return dict(target_sha256=sha256(TARGETS), cases=cases,
+                method="Initial alignment: oscillator-3 phase, in the C engine's convention, for a render of "
+                       "the recording's duration, iteratively shifted until the measured pitch trace over the "
+                       "first two analysed modulation periods is within 1 ms of the recording's. The same lag "
+                       "over the last two periods measures timing drift, which is reported, not corrected; "
+                       "negative rate differences mean the candidate modulation runs slower. Carrier phase is "
+                       "not matched.")
+
+
+def phase_derivation_checks(derived):
+    committed = {case["source_sha256"]: case["source_phase_at_render_start"]
+                 for case in json.loads(PHASES.read_text())["cases"]}
+    rows = []
+    for case in derived["cases"]:
+        difference = (case["source_phase_at_render_start"] - committed[case["source_sha256"]] + .5) % 1 - .5
+        rows.append(dict(case, committed=committed[case["source_sha256"]], difference_cycles=difference,
+                         passed=abs(difference) <= .004))
+    return rows
+
+
+def modulation_checks(renderer, folder, targets, phases):
     rows = []
     baseline = round(targets["extraction"]["modulation_carrier_baseline_hz"]*65536)/65536
     for row in targets["modulation"]:
-        feedback = row["feedback"]
         shape = targets["extraction"]["modulation_shape_to_global"][row["shape"]]
-        source = targets["extraction"]["modulation_source_unmodulated_hz"]["control_on" if feedback else "control_off"]
-        y = render(renderer, folder, f"mod-shape{shape}-feedback{int(feedback)}-amount{row['amount']}",
-                   seconds=20 if feedback else 42, freq1=baseline, freq3=source, wave1=3, wave3=shape,
-                   depth=row["calibrated_depth_octaves"], mod=1, control=int(feedback))[48000:-24000]
+        case = phases[row["source_sha256"]]
+        y = modulation_window(renderer, folder, f"mod-shape{shape}-feedback{int(row['feedback'])}-amount{row['amount']}",
+                              row, targets, case["source_phase_at_render_start"])
         measured = slow_modulation(y, baseline)
-        errors = {key: measured[key] - row[key] for key in ("pitch_span_cents", "cents_of_mean_frequency", "time_mean_pitch_cents")}
-        passed = abs(errors["pitch_span_cents"]) <= targets["tolerances"]["modulation_span_cents"]
-        passed &= abs(errors["cents_of_mean_frequency"]) <= targets["tolerances"]["modulation_cents_of_mean_frequency"]
-        passed &= abs(errors["time_mean_pitch_cents"]) <= targets["tolerances"]["modulation_time_mean_pitch_cents"]
-        rows.append(dict(shape=shape, amount=row["amount"], feedback=feedback,
-                         measured=measured, errors=errors, passed=bool(passed)))
+        timing = {key: case[key] for key in ("initial_lag_ms", "end_lag_ms", "candidate_rate_difference_percent")}
+        rows.append(dict(shape=shape, amount=row["amount"], feedback=row["feedback"],
+                         source_phase=case["source_phase_at_render_start"], recorded_timing=timing,
+                         **modulation_result(measured, row, targets)))
     return rows
+
+
+def modulation_result(measured, expected, targets):
+    errors = {key: measured[key] - expected[key] for key in ("pitch_span_cents", "cents_of_mean_frequency", "time_mean_pitch_cents")}
+    limits = targets["tolerances"]
+    passed = abs(errors["pitch_span_cents"]) <= limits["modulation_span_cents"]
+    passed &= abs(errors["cents_of_mean_frequency"]) <= limits["modulation_cents_of_mean_frequency"]
+    passed &= abs(errors["time_mean_pitch_cents"]) <= limits["modulation_time_mean_pitch_cents"]
+    return dict(measured=measured, errors=errors, passed=bool(passed))
+
+
+def phase_checks(renderer, folder, targets):
+    expected = next(r for r in targets["modulation"] if r["shape"] == 1 and r["amount"] == .5 and r["feedback"])
+    baseline = round(targets["extraction"]["modulation_carrier_baseline_hz"]*65536)/65536
+    settings = dict(seconds=20, freq1=baseline,
+                    freq3=targets["extraction"]["modulation_source_unmodulated_hz"]["control_on"],
+                    wave1=3, wave3=2, depth=expected["calibrated_depth_octaves"], mod=1, control=1)
+    phases = [(0., 2/3)] + [(carrier/4, source/8) for carrier in range(4) for source in range(8)]
+    results = []
+    for i, (carrier, source) in enumerate(phases):
+        case = dict(settings, phase1=carrier, phase3=source)
+        y = render(renderer, folder, f"phase-{i}", **case)[48000:-24000]
+        results.append(dict(settings=case, reference_source_sha256=expected["source_sha256"],
+                            cycle_diagnostic=cycle_span(y),
+                            **modulation_result(slow_modulation(y, baseline), expected, targets)))
+    return results
 
 
 def refinement_checks(current, previous, targets):
@@ -329,6 +486,7 @@ def main():
     parser.add_argument("--factor", type=int, choices=(1, 2, 4, 8, 16), default=8)
     parser.add_argument("--reference-dir", type=Path)
     parser.add_argument("--modulation", action="store_true", help="Also run all frozen slow-modulation cases")
+    parser.add_argument("--phase-sweep", action="store_true", help="Probe reverse-saw feedback at 33 carrier/source starts")
     parser.add_argument("--compare", type=Path, help="Compare slow-modulation summaries with a half-rate report")
     args = parser.parse_args()
     self_check()
@@ -342,23 +500,36 @@ def main():
     alias = alias_checks(args.renderer.resolve(), args.out, targets, args.factor)
     frequencies = frequency_checks(args.renderer.resolve(), args.out, targets)
     local = local_checks(args.renderer.resolve(), args.out, targets, sources) if sources is not None else []
-    modulation = modulation_checks(args.renderer.resolve(), args.out, targets) if args.modulation else []
+    derivation = []
+    if args.modulation and sources is not None:
+        derived = derive_source_phases(args.renderer.resolve(), args.out, targets, sources)
+        (args.out / "modulation-source-phases.json").write_text(json.dumps(derived, indent=2) + "\n")
+        derivation = phase_derivation_checks(derived)
+    modulation = modulation_checks(args.renderer.resolve(), args.out, targets, source_phases(targets)) if args.modulation else []
+    phase_sweep = phase_checks(args.renderer.resolve(), args.out, targets) if args.phase_sweep else []
     report = dict(target_sha256=hashlib.sha256(TARGETS.read_bytes()).hexdigest(),
                   renderer_sha256=hashlib.sha256(args.renderer.read_bytes()).hexdigest(),
                   source_sha256=sha256(ROOT / "dsp/oscillator.c"),
                   output_delay_samples=47*(1-1/args.factor),
-                  factor=args.factor, static=static, alias=alias, frequencies=frequencies, local=local, modulation=modulation,
+                  factor=args.factor, static=static, alias=alias, frequencies=frequencies, local=local,
+                  source_phase_derivation=derivation, modulation=modulation, phase_sweep=phase_sweep,
                   alias_method="Coherent 1-second spectrum; 20 Hz–20 kHz residual against static Fourier identities with documented polynomial-kernel/filter response, including harmonic-bin errors; 20–24 kHz transition band reported separately",
                   scope="Static shapes, resolved-frequency inputs and optional slow-modulation summaries; dynamic FM alias/refinement, device cost and firmware integration remain separate")
     if args.compare:
         report["refinement"] = refinement_checks(report, json.loads(args.compare.read_text()), targets)
     (args.out / "validation.json").write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
-    failures = [row for row in static + alias + frequencies + local + modulation if not row["passed"]]
+    failures = [row for row in static + alias + frequencies + local + derivation + modulation + phase_sweep if not row["passed"]]
     if args.compare and not report["refinement"]["passed"]:
         failures.append(report["refinement"])
     for row in failures:
         print("FAIL:", row)
-    print(f"{'FAIL' if failures else 'PASS'}: {len(static)} frozen signed-shape, {len(alias)} static spectral, {len(frequencies)} frequency, {len(local)} local recording and {len(modulation)} slow-modulation cases")
+    if modulation:
+        worst = max(modulation, key=lambda row: abs(row["recorded_timing"]["candidate_rate_difference_percent"]))
+        print(f"Timing drift against recordings (reported, not a target): up to "
+              f"{worst['recorded_timing']['candidate_rate_difference_percent']:+.3f}% modulation rate, "
+              f"{worst['recorded_timing']['end_lag_ms']} ms at the window end "
+              f"(shape {worst['shape']}, amount {worst['amount']}, feedback {worst['feedback']})")
+    print(f"{'FAIL' if failures else 'PASS'}: {len(static)} frozen signed-shape, {len(alias)} static spectral, {len(frequencies)} frequency, {len(local)} local recording, {len(derivation)} source-phase, {len(modulation)} slow-modulation and {len(phase_sweep)} phase-sweep cases")
     raise SystemExit(bool(failures))
 
 

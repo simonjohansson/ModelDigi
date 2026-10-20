@@ -106,21 +106,43 @@ These are fitted behavioral approximations. The three pulses use their
 unipolar convention directly. Span and both mean definitions, rather than
 these approximate coefficients alone, are the acceptance targets.
 
-The C control path refines the initial triangle gain by 1.0010033155 and the
-shared saw/reverse-saw gain by 1.0036560496, before the unchanged biases. These
-are behavioral corrections, not inferred circuit voltages. Each gain minimizes
-squared span error through the origin using only open-loop amounts 0.1/0.5;
-other amounts and every feedback condition remain holdouts. Audio coefficients,
-pulse control values, frozen observations and tolerances stay unchanged.
-All 48 slow cases pass, but reverse-saw feedback at amount 0.5 is close to the
-3-cent span limit. Removing both gains makes five open-loop cases fail by up
-to 7.4 cents: triangle at amount 1 and both saw directions at 0.75/1. The gains
-improve these held-out depths while worsening reverse-saw feedback at 0.5 to
-about +2.98 cents, leaving only 0.02 cents of margin. Opposite open-loop and
-feedback residuals remain an unresolved reference/feedback-path mismatch; a
-single gain does not remove it. The cause is not uniquely identified. Multiple
-start phases and audio-rate FM remain unqualified. Do not refit the feedback
-holdout or weaken the frozen targets to hide this mismatch.
+The C control path uses these shapes and biases with no further gain. An
+earlier refinement (triangle ×1.0010, saws ×1.0037, fitted to open-loop amounts
+0.1/0.5) was removed because it compensated a measurement condition rather
+than a control-path property. The frozen span estimator's fixed window holds a
+non-integer number of source cycles, so a ramp's 5th–95th percentile span
+depends on where the source cycle starts: by up to about 8.5 cents at amount 1.
+The engine's default start phase reads ramp spans about 0.45% low. The gain
+cancelled that and pushed feedback cases, which read high at that phase,
+towards the 3-cent limit.
+
+Each recording exposes its own source phase through its measured pitch trace.
+Modulation acceptance therefore starts oscillator 3 at the phase that
+reproduces the start of each recording's analysed window. This is an initial
+alignment over the first two modulation periods, not a whole-window match.
+These phases come from the hash-verified recordings, are kept separate from the
+frozen targets, and are re-derived by the explicit local comparison. All 36
+open-loop recordings imply the same phase. With matched phases and no gain,
+all 48 cases pass. Worst span
+errors are 0.99 cents open-loop and 0.70 cents with feedback; worst mean errors
+are 0.95 and 0.74 cents. Residuals stay roughly constant in cents across a 27×
+depth range, so they indicate no depth-calibration or control-amplitude scale
+error. In feedback at amount 0.5, pulse source rates agree with the recordings
+within 0.02%. That rate depends only on duty and depth, so oscillator 3
+receives the same depth as the carrier.
+
+Small residuals remain within limits and unexplained. The separate open-loop
+saw and reverse-saw biases split the feedback means by about 1.4 cents, whereas
+the recordings show equal feedback means. Feedback modulation runs slower than
+recorded: by 0.04–0.12% for triangle and saws at both amounts and for pulses at
+amount 0.1, so the initially aligned trace falls up to 20 ms behind by the end
+of an 18.5-second window. Pulses at amount 0.5 run about 0.02% fast, and
+open-loop timing stays within 1 ms. This drift is reported beside the
+summaries; later sections are never realigned to hide it. Pulse mean
+frequencies carry +0.45 to +0.95 cents. Carrier
+phase is not matched; it moves spans by up to about 0.2 cents. Audio-rate FM
+remains unqualified. Do not refit the feedback holdouts or weaken the frozen
+targets.
 
 There are 36 new open-loop depth observations: six shapes at amounts 0.05,
 0.1, 0.25, 0.5, 0.75 and 1, plus six zero-depth controls. The recorded amount

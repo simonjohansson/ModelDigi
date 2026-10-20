@@ -17,6 +17,27 @@ spec.loader.exec_module(checks)
 
 
 class MeasurementTests(unittest.TestCase):
+    def test_source_phases_cover_targets_and_lag_sign(self):
+        targets = json.loads(checks.TARGETS.read_text())
+        self.assertEqual(len(checks.source_phases(targets)), len(targets["modulation"]))
+        t = np.arange(8000) / 1000
+        ramp = 2 ** ((t * 2) % 1)
+        lead = 2 ** ((t * 2 + .04) % 1)
+        self.assertEqual(checks.trace_lag(ramp, lead, 500), -20)
+        self.assertEqual(checks.trace_lag(lead, ramp, 500), 20)
+
+    def test_time_weighted_quantiles_and_observed_cycle_boundaries(self):
+        self.assertLess(max(abs(checks.time_quantiles([0, 1], [100, 200], [.05, .95]) - [105, 195])), 1e-10)
+        self.assertLess(max(abs(checks.time_quantiles([0, 1, 10], [100, 100, 100], [.05, .95]) - 100)), 1e-10)
+        times = np.arange(9.)
+        pitch = np.array([200, 100, 200, 100, 200, 100, 200, 100, 200])
+        result = checks.cycle_span_from_pitch(times, pitch)
+        self.assertEqual(result["complete_periods"], 3)
+        self.assertLess(abs(result["span_cents"] - 1200*np.log2(195/105)), 1e-9)
+        for t, values in (([0, 0], [1, 2]), ([0, 1], [1, float('nan')])):
+            with self.assertRaises(ValueError): checks.time_quantiles(t, values, [.5])
+        with self.assertRaises(ValueError): checks.cycle_span_from_pitch([0, 1, 2], [1, 1, 1])
+
     def test_harmonic_sign_and_dc(self):
         checks.self_check()
         t = np.arange(48000) / 48000
@@ -72,10 +93,21 @@ class MeasurementTests(unittest.TestCase):
     def test_renderer_rejects_invalid_settings_before_writing(self):
         with tempfile.TemporaryDirectory() as name:
             path = Path(name) / "invalid.wav"
-            for setting in ("seconds=nan", "seconds=0", "seconds=0.00000001", "freq1=inf", "freq1=20001", "wave1=3x", "wave1=9", "level1=-1", "unknown=1"):
+            for setting in ("seconds=nan", "seconds=0", "seconds=0.00000001", "freq1=inf", "freq1=20001", "wave1=3x", "wave1=9", "level1=-1", "phase1=1", "phase2=-.1", "phase3=nan", "unknown=1"):
                 run = subprocess.run([str(ROOT / "out/render"), str(path), setting], capture_output=True)
                 self.assertEqual(run.returncode, 2, setting)
                 self.assertFalse(path.exists())
+
+    def test_host_phase_override_preserves_default_and_quarter_cycle(self):
+        with tempfile.TemporaryDirectory() as name:
+            folder = Path(name)
+            dry = checks.render(ROOT / "out/render", folder, "dry", seconds=2, freq1=375)
+            same = checks.render(ROOT / "out/render", folder, "same", seconds=2, freq1=375, phase1=0)
+            shifted = checks.render(ROOT / "out/render", folder, "shifted", seconds=2, freq1=375, phase1=.25)
+            self.assertTrue(np.array_equal(dry, same))
+            a = checks.harmonics(dry[48000:], 375, 1)[0]
+            b = checks.harmonics(shifted[48000:], 375, 1)[0]
+            self.assertLess(abs(b/a - 1j), 1e-5)
 
     def test_float_wav_validation(self):
         with tempfile.TemporaryDirectory() as name:

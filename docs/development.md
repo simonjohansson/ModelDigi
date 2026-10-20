@@ -76,11 +76,53 @@ recordings nor stock firmware. The 8× rate remains provisional for device use:
 two realistic instances before choosing or optimizing a device rate.
 
 The modulation task adds all 48 frozen slow-modulation cases, preserving span,
-cents of mean frequency and time-averaged cents. Refinement doubles the entire
+cents of mean frequency and time-averaged cents. Each case renders its
+recording's duration, analyses the same window, and starts oscillator 3 at the
+phase observed in that recording. That phase aligns the first two modulation
+periods only. The same lag over the last two periods is recorded as timing
+drift, carried into each modulation result and summarized in the output; it is
+reported, not corrected, and is not an acceptance target. The phase table is
+committed beside the frozen targets, not inside them. Feedback phases depend on the engine's
+behavior during the one-second lead-in, and portable checks cannot detect a
+stale table; after any change to the modulation path, run the local recording
+comparison below with `--modulation`. Refinement doubles the entire
 same C algorithm from 8× to 16× and checks those summaries within one tenth of
 their frozen acceptance limits. It reports filter delay separately and does
 not establish samplewise dynamic convergence or all-start-phase robustness.
 Reports and rendered WAVs stay under ignored `out/`; targets are never rewritten.
+
+For start-phase diagnostics, the host renderer accepts `phase1`, `phase2` and
+`phase3` in cycles, from 0 inclusive to 1 exclusive. Omitted values retain the
+engine's initialization exactly; overrides affect only the host tool's initial
+scratch state and add no device or shared-engine control.
+
+`mise run test:phase-sweep` probes reverse-saw feedback at amount 0.5 over four
+carrier phases × eight source phases, plus the canonical start. It applies the
+unchanged frozen span and both mean limits, and exits unsuccessfully if any
+probe fails. It is an explicit diagnostic of start-phase sensitivity, not part
+of the default CI suite. Use `--renderer`, `--factor` and a separate `--out` to
+repeat with a higher-rate build of the same C engine.
+
+Finite-window pitch-span percentiles can depend on the source phase even in a
+steady signal: at amount 1, open-loop ramp spans move by about 8.5 cents across
+start phases. That is why acceptance uses each recording's observed phase.
+Keep this estimator sensitivity separate from reference error and
+rate-refinement error. A complete-period span is useful diagnostically, but
+must not replace the frozen extractor or its targets without review.
+
+The phase report also includes a separate cycle diagnostic for this descending
+slow-ramp case. Observed mid-pitch crossings delimit complete modulation cycles;
+time-weighted percentiles of the linearly interpolated measured frequency avoid
+both a fitted repetition period and a second 1 kHz resampling grid. Marker
+times, period range and pitch quantiles are reported for inspection. This is
+not a generic audio-rate pitch estimator. The original frozen-window result
+still determines every `passed` flag and the command's exit status.
+
+Carrier-period pitch measurements average across each carrier cycle, especially
+around abrupt modulation resets. Distinguish that measurement aperture from
+the actual C phase-advance rate. The host state regression verifies that a
+carrier starting-phase change leaves its pitch increments and oscillator-3
+feedback state identical; it does not establish physical-unit fidelity.
 
 For a local recording comparison, point explicitly at the retained evidence:
 
@@ -91,8 +133,11 @@ MODELDIGI_REFERENCE_DIR=/absolute/path/to/reference mise run test:reference --mo
 This verifies every anchored manifest, original/shared-file hash and recording
 inventory before rendering. It then compares 35 matched single-source cases
 using signed ratios to the same-harmonic saw, with no independent inversion,
-phase or gain fit. Missing or changed evidence fails; the portable tests remain
-usable without it. Complete-path bank RMS is not a core mixer target because
+phase or gain fit. With `--modulation` it also re-derives every oscillator-3
+start phase from the recordings, and fails if any differs from the committed
+table by more than 0.004 cycles. The derived table is written to the report
+directory and never replaces the committed one automatically. Missing or
+changed evidence fails; the portable tests remain usable without it. Complete-path bank RMS is not a core mixer target because
 the recordings do not isolate mixer transfer or match free-running phases.
 
 ## Evidence boundaries

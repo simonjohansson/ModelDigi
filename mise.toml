@@ -112,6 +112,11 @@ run = [
   'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_oscillators.py --modulation --factor 16 --renderer out/render-16 --out out/refinement-16 --compare out/refinement-8/validation.json',
 ]
 
+[tasks."test:phase-sweep"]
+description = "Probe the near-limit feedback case across carrier and source start phases"
+depends = ["build:renderer"]
+run = 'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_oscillators.py --phase-sweep --out out/phase-sweep "$@"'
+
 [tasks.firmware]
 description = "Build custom firmware for the device targets"
 depends = ["firmware:digitakt", "firmware:digitone"]
