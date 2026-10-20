@@ -377,16 +377,28 @@ HOT int32_t branch(int32_t *s, const uint16_t *a, unsigned first, unsigned count
 /* Decimate n samples by two in place: the first sample of each pair enters branch 1, the second
  * branch 0, and the pair yields one output. Stage 0 runs at the highest rate. Passes always hold
  * whole output frames, so pairs never straddle a pass. */
-static void decimate(modeldigi_osc_state *s, unsigned stage, int32_t *x, unsigned n)
+HOT void decimate_filter(struct modeldigi_osc_filter *f, const uint16_t *a, unsigned count,
+                         int32_t *x, unsigned n)
 {
-    struct modeldigi_osc_filter *f = &s->filter[stage];
-    unsigned rate = MODELDIGI_OVERSAMPLE >> stage;   /* the stage's input rate, in 48 kHz units */
-    const uint16_t *a = rate == 2 ? allpass96 : rate == 4 ? allpass192 : rate == 8 ? allpass384 : allpass768;
-    unsigned count = rate == 2 ? 6 : rate == 4 ? 3 : 2;
     for (unsigned i = 0; i < n; i += 2) {
         int32_t odd = branch(f->state[1], a, 1, count, x[i]);
         x[i / 2] = (branch(f->state[0], a, 0, count, x[i + 1]) >> 1) + (odd >> 1);
     }
+}
+
+/* Fixed stage sizes let the compiler unroll the allpass branches. */
+static void decimate(modeldigi_osc_state *s, unsigned stage, int32_t *x, unsigned n)
+{
+    struct modeldigi_osc_filter *f = &s->filter[stage];
+    unsigned rate = MODELDIGI_OVERSAMPLE >> stage;
+    if (rate == 2)
+        decimate_filter(f, allpass96, 6, x, n);
+    else if (rate == 4)
+        decimate_filter(f, allpass192, 3, x, n);
+    else if (rate == 8)
+        decimate_filter(f, allpass384, 2, x, n);
+    else
+        decimate_filter(f, allpass768, 2, x, n);
 }
 
 void modeldigi_osc_init(modeldigi_osc_state *state)
