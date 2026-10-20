@@ -42,7 +42,7 @@ int main(int argc, char **argv)
             else if (!strcmp(key, "wave") && value >= 0 && value <= 6 && value == floor(value)) p.waveform[v] = (uint8_t)value;
             else if (!strcmp(key, "level") && value >= 0 && value <= 1) p.level[v] = (uint16_t)llround(value * 65535);
             else if (!strcmp(key, "phase") && value >= 0 && value < 1) {
-                initial_phase[v] = (uint64_t)(value * (double)(UINT64_C(1) << 48));
+                initial_phase[v] = (uint64_t)(value * (double)(UINT64_C(1) << 48)) << 16;
                 phase_set[v] = true;
             }
             else goto invalid;
