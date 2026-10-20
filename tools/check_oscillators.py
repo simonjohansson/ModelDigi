@@ -400,7 +400,7 @@ def refinement_checks(current, previous, targets):
     differences = {name: max(abs(row["measured"][name] - before[key(row)]["measured"][name]) for row in current["modulation"]) for name in limits}
     return dict(maximum_differences=differences, limits=limits,
                 passed=all(differences[name] <= limits[name] for name in limits),
-                scope="Steady slow-modulation summaries; complete-period means retain offsets. Reported filter delays differ; no samplewise waveform or audio-rate-FM convergence claim.")
+                scope="Steady slow-modulation summaries; complete-period means retain offsets. Filter phase differs by rate; no samplewise waveform or audio-rate-FM convergence claim.")
 
 
 def static_checks(renderer, folder, targets, factor):
@@ -440,17 +440,42 @@ def fourier(shape, h, choices):
     return 2 * math.sin(np.pi * h * choices["pulse_high_fractions"][shape - 4]) / (np.pi*h)
 
 
+def halfband_coefficients(sections, transition):
+    """Elliptic polyphase halfband allpass coefficients (Valenzuela-Constantinides closed form)."""
+    k = math.tan((1 - 2*transition) * math.pi / 4)**2
+    root = (1 - k*k)**0.25
+    e = 0.5 * (1 - root) / (1 + root)
+    e4 = e**4
+    q = e * (1 + e4*(2 + e4*(15 + 150*e4)))
+    order = 2*sections + 1
+    out = []
+    for c in range(1, sections + 1):
+        num = sum((-1)**i * q**(i*(i + 1)) * math.sin((2*i + 1)*c*math.pi/order) for i in range(40)) * q**0.25
+        den = sum((-1)**i * q**(i*i) * math.cos(2*i*c*math.pi/order) for i in range(1, 40)) + 0.5
+        w2 = (num / den)**2
+        x = math.sqrt((1 - w2*k) * (1 - w2/k)) / (1 + w2)
+        out.append((1 - x) / (1 + x))
+    return out
+
+
+def stage_response(hz, rate):
+    """One decimate-by-two stage at input `rate`: 20 kHz passband, outputs on each pair's second sample."""
+    sections = 6 if rate == 96000 else 3 if rate == 192000 else 2
+    z = np.exp(2j*np.pi*np.asarray(hz, dtype=float)/rate)
+    branches = [np.ones_like(z), np.ones_like(z)]
+    for i, a in enumerate(halfband_coefficients(sections, 0.5 - 2*20000/rate)):
+        branches[i % 2] = branches[i % 2] * (a + z**-2) / (1 + a*z**-2)
+    return 0.5 * (branches[0] + branches[1]/z) * z
+
+
 def response(hz, factor):
     # Independent closed-form filter definition, not the candidate's coefficient array.
-    gain = np.sinc(hz / (48000 * factor))**2
-    k = np.arange(1, 48, 2)
-    taps = np.sin(np.pi*k/2)/(np.pi*k) * (.42 + .5*np.cos(np.pi*k/48) + .08*np.cos(2*np.pi*k/48))
+    gain = np.sinc(np.asarray(hz, dtype=float) / (48000 * factor))**2 + 0j
     rate_factor = factor
     while rate_factor > 1:
-        gain *= .5 + 2 * np.sum(taps * np.cos(2*np.pi*hz*k/(48000*rate_factor)))
+        gain = gain * stage_response(hz, 48000 * rate_factor)
         rate_factor //= 2
-    delay = 47 * (1 - 1 / factor)
-    return gain * np.exp(-2j*np.pi*hz*delay/48000)
+    return gain
 
 
 def alias_checks(renderer, folder, targets, factor):
@@ -510,10 +535,9 @@ def main():
     report = dict(target_sha256=hashlib.sha256(TARGETS.read_bytes()).hexdigest(),
                   renderer_sha256=hashlib.sha256(args.renderer.read_bytes()).hexdigest(),
                   source_sha256=sha256(ROOT / "dsp/oscillator.c"),
-                  output_delay_samples=47*(1-1/args.factor),
                   factor=args.factor, static=static, alias=alias, frequencies=frequencies, local=local,
                   source_phase_derivation=derivation, modulation=modulation, phase_sweep=phase_sweep,
-                  alias_method="Coherent 1-second spectrum; 20 Hz–20 kHz residual against static Fourier identities with documented polynomial-kernel/filter response, including harmonic-bin errors; 20–24 kHz transition band reported separately",
+                  alias_method="Coherent 1-second spectrum; 20 Hz–20 kHz residual against static Fourier identities with the documented polynomial-kernel and elliptic-halfband response, including harmonic-bin errors; 20–24 kHz transition band reported separately",
                   scope="Static shapes, resolved-frequency inputs and optional slow-modulation summaries; dynamic FM alias/refinement, device cost and firmware integration remain separate")
     if args.compare:
         report["refinement"] = refinement_checks(report, json.loads(args.compare.read_text()), targets)

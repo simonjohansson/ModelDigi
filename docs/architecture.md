@@ -68,9 +68,15 @@ Clamped modulation trajectories are safety cases outside the fidelity domain.
 Keep device contracts out of shared DSP.
 Digitone must establish its own contracts when implemented.
 
-Audio uses polynomial step/slope corrections and halfband decimation. The
-current 8× internal rate is a host-quality candidate; it has not been selected
-against a device CPU budget. Modulation uses a separate pre-level control tap,
+Audio uses polynomial step/slope corrections and elliptic polyphase halfband
+decimation: two branches of first-order allpass sections per stage, which null
+each stage's Nyquist frequency exactly at any coefficient rounding. Each
+waveform except the pulses is linear in phase over at most two segments, so a
+voice is a level-scaled line per segment, recomputed once per render. The
+engine uses 32-bit products only and links no 64-bit runtime helpers, so it
+can run inside a firmware mod. The internal rate is a compile-time choice; it
+has not yet been selected against a device CPU budget. Modulation uses a
+separate pre-level control tap,
 preserving duty-dependent mean pitch and conditional self-feedback. Init sets
 phases to 0, 1/3 and 2/3; notes, muting and selector changes do not reset them.
 No second oscillator implementation serves as the sound oracle.

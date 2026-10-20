@@ -1,8 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "oscillator.h"
 
-/* Host refinement changes the complete engine rate; no public quality control.
- * shortcut: factor 8 is a host-quality candidate; select a device factor after full-render timing. */
+/* Host refinement changes the complete engine rate; no public quality control. */
 #ifndef MODELDIGI_OVERSAMPLE
 #define MODELDIGI_OVERSAMPLE 8
 #endif
@@ -10,176 +9,384 @@
 #error "MODELDIGI_OVERSAMPLE must be 1, 2, 4, 8 or 16"
 #endif
 
+/* Hot helpers must inline so a voice's running values stay in registers. */
+#define HOT static inline __attribute__((always_inline))
+
+/* Device code links no 64-bit runtime helpers: products use 16-bit halves, 64-bit values are only
+ * added, compared and shifted by constants. */
+
 #define ONE (UINT64_C(1) << 48)
 #define MASK (ONE - 1)
 #define Q INT32_C(67108864)
 #define RATE (48000u * MODELDIGI_OVERSAMPLE)
-#define SAW INT32_C(63603062)
-#define TRI INT32_C(59677012)
-#define RESIDUE INT32_C(1133630)
-#define MIX_TRI INT32_C(42694753)
-#define MIX_SAW INT32_C(9994698)
+#define SAW INT64_C(63603062)
+#define TRI INT64_C(59677012)
+#define RESIDUE INT64_C(1133630)
+#define MIX_TRI INT64_C(42694753)
+#define MIX_SAW INT64_C(9994698)
+/* Compile-time products of Q26 constants. */
+#define MULQ(a, b) ((a) * (b) / Q)
+
+/* Unscaled Q26 shapes as value = a + b * phase, phase in cycles; triangle and combination split at 1/2. */
+#define TRI_A0 (TRI + MULQ(RESIDUE, SAW))
+#define TRI_B0 (-4 * TRI - MULQ(RESIDUE, 2 * SAW))
+#define TRI_A1 (-3 * TRI + MULQ(RESIDUE, SAW))
+#define TRI_B1 (4 * TRI - MULQ(RESIDUE, 2 * SAW))
+static const int32_t line_a[4][2] = {
+    { TRI_A0, TRI_A1 },
+    { MULQ(MIX_TRI, TRI_A0) + MULQ(MIX_SAW, SAW), MULQ(MIX_TRI, TRI_A1) + MULQ(MIX_SAW, SAW) },
+    { -SAW, -SAW },
+    { SAW, SAW },
+};
+static const int32_t line_b[4][2] = {
+    { TRI_B0, TRI_B1 },
+    { MULQ(MIX_TRI, TRI_B0) - MULQ(MIX_SAW, 2 * SAW), MULQ(MIX_TRI, TRI_B1) - MULQ(MIX_SAW, 2 * SAW) },
+    { 2 * SAW, 2 * SAW },
+    { -2 * SAW, -2 * SAW },
+};
+/* Value step at the phase reset, and the slope change at the triangle knee (Q26 per cycle). */
+static const int32_t reset_step[4] = {
+    MULQ(RESIDUE, 2 * SAW), MULQ(MIX_TRI, MULQ(RESIDUE, 2 * SAW)) + MULQ(MIX_SAW, 2 * SAW), -2 * SAW, 2 * SAW
+};
+static const int32_t knee_slope[4] = { 8 * TRI, MULQ(MIX_TRI, 8 * TRI), 0, 0 };
+static const int32_t control_bias[4] = { 1751541, 0, -234881, -409364 };
 
 static const uint64_t widths[3] = {
     UINT64_C(137922738588221), UINT64_C(87257242780303), UINT64_C(54887620458578)
 };
 
-/* 97-tap Blackman-windowed halfband: sinc(k/2) * (.42+.5*cos(pi*k/48)
- * +.08*cos(2*pi*k/48)); Q30, odd distances from center. Center fixes DC gain. */
-static const int32_t halfband[24] = {
-    341182827, -112139226, 65412640, -44780229, 32900357, -25054594,
-    19435097, -15201818, 11910993, -9304609, 7220318, -5548558,
-    4210528, -3146229, 2307764, -1655493, 1155849, -780094,
-    503642, -305675, 168929, -79510, 26718, -2808
+/* 2^(i/256), Q15. */
+static const uint32_t exp2_q15[257] = {
+    32768, 32857, 32946, 33035, 33125, 33215, 33305, 33395, 33486, 33576, 33667, 33759, 33850, 33942, 34034, 34126,
+    34219, 34312, 34405, 34498, 34591, 34685, 34779, 34874, 34968, 35063, 35158, 35253, 35349, 35445, 35541, 35637,
+    35734, 35831, 35928, 36025, 36123, 36221, 36319, 36417, 36516, 36615, 36715, 36814, 36914, 37014, 37114, 37215,
+    37316, 37417, 37518, 37620, 37722, 37824, 37927, 38030, 38133, 38236, 38340, 38444, 38548, 38653, 38757, 38863,
+    38968, 39074, 39180, 39286, 39392, 39499, 39606, 39714, 39821, 39929, 40037, 40146, 40255, 40364, 40473, 40583,
+    40693, 40804, 40914, 41025, 41136, 41248, 41360, 41472, 41584, 41697, 41810, 41923, 42037, 42151, 42265, 42380,
+    42495, 42610, 42726, 42841, 42958, 43074, 43191, 43308, 43425, 43543, 43661, 43780, 43898, 44017, 44137, 44256,
+    44376, 44497, 44617, 44738, 44859, 44981, 45103, 45225, 45348, 45471, 45594, 45718, 45842, 45966, 46091, 46216,
+    46341, 46467, 46593, 46719, 46846, 46973, 47100, 47228, 47356, 47484, 47613, 47742, 47871, 48001, 48131, 48262,
+    48393, 48524, 48655, 48787, 48920, 49052, 49185, 49319, 49452, 49586, 49721, 49856, 49991, 50126, 50262, 50399,
+    50535, 50672, 50810, 50947, 51085, 51224, 51363, 51502, 51642, 51782, 51922, 52063, 52204, 52346, 52488, 52630,
+    52773, 52916, 53059, 53203, 53347, 53492, 53637, 53782, 53928, 54074, 54221, 54368, 54515, 54663, 54811, 54960,
+    55109, 55258, 55408, 55558, 55709, 55860, 56012, 56163, 56316, 56468, 56622, 56775, 56929, 57083, 57238, 57393,
+    57549, 57705, 57861, 58018, 58176, 58333, 58491, 58650, 58809, 58968, 59128, 59289, 59449, 59611, 59772, 59934,
+    60097, 60260, 60423, 60587, 60751, 60916, 61081, 61247, 61413, 61579, 61746, 61914, 62081, 62250, 62419, 62588,
+    62757, 62928, 63098, 63269, 63441, 63613, 63785, 63958, 64132, 64306, 64480, 64655, 64830, 65006, 65182, 65359,
+    65536,
 };
 
-static int32_t mul(int32_t a, int32_t b)
+/* Elliptic polyphase halfband decimators (Valenzuela-Constantinides): two branches of first-order
+ * allpass sections in the decimated rate, alternating coefficients, output the mean of the branches.
+ * The pair nulls the stage's Nyquist frequency exactly at any coefficient rounding. Coefficients are
+ * Q16, designed for a 20 kHz passband at each stage's input rate: 96 kHz (six sections, -87 dB),
+ * 192 kHz (three, -95 dB) and 384 kHz or more (two, -100 dB). */
+static const uint16_t allpass96[6] = { 2896, 10760, 21676, 33757, 46010, 58647 };
+static const uint16_t allpass192[3] = { 4180, 17484, 43814 };
+static const uint16_t allpass384[2] = { 7229, 35178 };
+static const uint16_t allpass768[2] = { 6994, 34738 };
+
+/* a * x / 2^16 for x < 2^16, |a| < 2^31: exact floor without a 64-bit product. */
+HOT int32_t mul16(int32_t a, uint32_t x)
 {
-    return (int32_t)((int64_t)a * b / Q);
+    return (a >> 16) * (int32_t)x + (int32_t)((((uint32_t)a & 0xffff) * x) >> 16);
 }
 
-static int32_t value(unsigned shape, uint64_t phase)
+/* floor(a * x / 2^32), a signed, x unsigned. */
+HOT int32_t mulhi(int32_t a, uint32_t x)
 {
-    int32_t p = (int32_t)(phase >> 22);
-    int32_t saw = mul(SAW, Q - 2 * p);
-    int32_t triangle = mul(TRI, Q - 4 * (p < Q / 2 ? p : Q - p))
-                     + mul(RESIDUE, saw);
-    switch (shape) {
-    case 0: return triangle;
-    case 1: return mul(MIX_TRI, triangle) + mul(MIX_SAW, saw);
-    case 2: return -saw;
-    case 3: return saw;
-    default: {
-        uint64_t width = widths[shape - 4];
-        bool high = phase < width / 2 || phase >= ONE - width / 2;
-        return (high ? 2 * Q : 0) - (int32_t)(width >> 21);
-    }
-    }
+    int32_t ah = a >> 16, xh = (int32_t)(x >> 16), xl = (int32_t)(x & 0xffff);
+    uint32_t al = (uint32_t)a & 0xffff;
+    int32_t hl = ah * xl, hh = ah * xh;
+    uint32_t lh = al * (uint32_t)xh, ll = al * (uint32_t)xl;
+    return hh + (hl >> 16) + (int32_t)(lh >> 16)
+         + (int32_t)((((uint32_t)hl & 0xffff) + (lh & 0xffff) + (ll >> 16)) >> 16);
 }
 
-static int32_t slope(unsigned shape, uint64_t phase)
+/* a * b for 32-bit unsigned operands, as 64 bits from 16-bit partial products. */
+static uint64_t mul64(uint32_t a, uint32_t b)
 {
-    int32_t triangle = (phase < ONE / 2 ? -4 * TRI : 4 * TRI)
-                     + mul(RESIDUE, -2 * SAW);
-    switch (shape) {
-    case 0: return triangle;
-    case 1: return mul(MIX_TRI, triangle) + mul(MIX_SAW, -2 * SAW);
-    case 2: return 2 * SAW;
-    case 3: return -2 * SAW;
-    default: return 0;
-    }
+    uint32_t ah = a >> 16, al = a & 0xffff, bh = b >> 16, bl = b & 0xffff;
+    return ((uint64_t)(ah * bh) << 32) + ((uint64_t)(ah * bl) << 16) + ((uint64_t)(al * bh) << 16) + al * bl;
 }
 
-/* Two-sample polynomial step/slope residuals; previous sample is held back.
- * Q26 audio, Q16 time since event. Products stay in signed 64 bits. */
-static void correct(int32_t *previous, int32_t *current,
-                    uint32_t t, int32_t jump, int32_t change)
+/* round(v * level / 65535). */
+static int32_t scaled(int32_t v, uint32_t level)
 {
-    int64_t a = t, b = 65536 - t;
-    int64_t aa = a * a / 65536, bb = b * b / 65536;
-    *previous += (int32_t)((int64_t)jump * aa / 131072);
-    *current -= (int32_t)((int64_t)jump * bb / 131072);
-    *previous += (int32_t)((int64_t)change * (aa * a / 65536) / 393216);
-    *current += (int32_t)((int64_t)change * (bb * b / 65536) / 393216);
-}
-
-static void edge(int32_t *previous, int32_t *current, uint64_t old,
-                 uint64_t increment, uint64_t at, int32_t jump, int32_t change)
-{
-    uint64_t distance = (at - old) & MASK;
-    if (distance && distance <= increment) {
-        uint32_t t = (uint32_t)(((increment - distance) << 16) / increment);
-        int32_t m = (int32_t)((int64_t)change * (int64_t)(increment >> 18) / (INT64_C(1) << 30));
-        correct(previous, current, t, jump, m);
-    }
-}
-
-static int32_t tick(modeldigi_osc_state *s, unsigned v, unsigned shape, uint64_t increment)
-{
-    uint64_t old = s->voice[v].phase;
-    uint64_t phase = (old + increment) & MASK;
-    int32_t y = value(shape, phase);
-    if (!s->voice[v].primed) {
-        s->voice[v].previous = value(shape, old);
-        s->voice[v].primed = true;
-    } else if (s->voice[v].waveform != shape || s->voice[v].increment != increment) {
-        unsigned before = s->voice[v].waveform;
-        int32_t jump = value(shape, old) - value(before, old);
-        int32_t change = (int32_t)(((int64_t)slope(shape, old) * (int64_t)(increment >> 18)
-                      - (int64_t)slope(before, old) * (int64_t)(s->voice[v].increment >> 18)) / (INT64_C(1) << 30));
-        correct(&s->voice[v].previous, &y, 65536, jump, change);
-    }
-    if (shape < 4) {
-        int32_t reset = shape == 0 ? mul(RESIDUE, 2 * SAW)
-                      : shape == 1 ? mul(MIX_TRI, mul(RESIDUE, 2 * SAW)) + mul(MIX_SAW, 2 * SAW)
-                      : shape == 2 ? -2 * SAW : 2 * SAW;
-        int32_t knee = shape == 0 ? 8 * TRI : shape == 1 ? mul(MIX_TRI, 8 * TRI) : 0;
-        edge(&s->voice[v].previous, &y, old, increment, 0, reset, -knee);
-        if (knee)
-            edge(&s->voice[v].previous, &y, old, increment, ONE / 2, 0, knee);
-    } else {
-        uint64_t width = widths[shape - 4];
-        edge(&s->voice[v].previous, &y, old, increment, width / 2, -2 * Q, 0);
-        edge(&s->voice[v].previous, &y, old, increment, ONE - width / 2, 2 * Q, 0);
-    }
-    int32_t output = s->voice[v].previous;
-    s->voice[v].previous = y;
-    s->voice[v].phase = phase;
-    s->voice[v].increment = increment;
-    s->voice[v].waveform = (uint8_t)shape;
-    return output;
-}
-
-static uint32_t bounded(uint32_t hz)
-{
-    return hz < 4096 ? 4096 : hz > 20000u * 65536 ? 20000u * 65536 : hz;
+    int32_t t = mul16(v, level);
+    return t + (t >> 16);
 }
 
 static uint64_t increment(uint32_t hz)
 {
-    return ((uint64_t)hz << 32) / RATE;
+    /* hz * 2^32 / RATE via a 2^47 / RATE reciprocal. */
+    return mul64(hz, (uint32_t)(((UINT64_C(1) << 47) + RATE / 2) / RATE)) >> 15;
 }
 
-static int32_t control(unsigned shape, uint64_t phase)
+#define HZ_MIN 4096u
+#define HZ_MAX (20000u * 65536)
+
+static uint32_t bounded(uint32_t hz)
 {
-    if (shape >= 4) {
-        uint64_t width = widths[shape - 4];
-        return phase >= width / 2 && phase < ONE - width / 2 ? Q : 0;
+    return hz < HZ_MIN ? HZ_MIN : hz > HZ_MAX ? HZ_MAX : hz;
+}
+
+/* 2^octaves (Q16) as a Q15 fraction in [1, 2] and whole octaves. */
+typedef struct { uint32_t t; int32_t whole; } octave_factor;   /* t = 0: unmodulated */
+
+/* Output frames processed per pass; its sub-samples live on the stack. */
+#define CHUNK 8
+
+HOT octave_factor factor(int32_t octaves)
+{
+    uint32_t frac = (uint32_t)octaves & 0xffff, i = frac >> 8;
+    octave_factor f = { exp2_q15[i] + (((exp2_q15[i + 1] - exp2_q15[i]) * (frac & 255) + 128) >> 8), octaves >> 16 };
+    return f;
+}
+
+/* An increment times a factor, clamped to the 1/16-20000 Hz increments. Full 48-bit precision:
+ * 32-bit modulated increments shift oscillator 3's self-modulated rate with the internal rate
+ * enough to move slow-modulation spans by half a cent. */
+HOT uint64_t modulate(uint64_t inc, octave_factor f, uint64_t lo, uint64_t hi)
+{
+    uint32_t a = (uint32_t)(inc >> 32), b = (uint32_t)(inc >> 16) & 0xffff, c = (uint32_t)inc & 0xffff;
+    uint64_t r = ((uint64_t)(a * f.t) << 17) + ((uint64_t)(b * f.t) << 1) + ((c * f.t) >> 15);
+    int32_t whole = f.whole;
+    for (; whole > 0 && r < hi; --whole)
+        r <<= 1;
+    for (; whole < 0 && r > lo; ++whole)
+        r >>= 1;
+    return r < lo ? lo : r > hi ? hi : r;
+}
+
+/* Fraction (Q16) of a sub-sample since an event `distance` before the end of a step `span`, both in
+ * 2^-32 cycles. Rounded throughout: a biased event time leaves a DC offset of the step's sign. */
+static uint32_t since(uint32_t span, uint32_t distance)
+{
+    uint32_t part = span - distance;
+    while (span >= 65536) {
+        span = (span + 1) >> 1;
+        part = (part + 1) >> 1;
     }
-    int32_t bias = shape == 0 ? 1751541 : shape == 2 ? -234881 : -409364;
-    return -value(shape, phase) / 2 + bias;
+    return span ? ((part << 16) + span / 2) / span : 0;
 }
 
-static uint32_t modulate(uint32_t hz, int32_t octaves)
+/* Two-sample polynomial step and slope residuals around an event in the step from `old`; the
+ * previous sample is still held back. Q26 audio; slope_change is per cycle. Called only at events,
+ * so it stays out of line and returns its two corrections in r. */
+static void __attribute__((noinline)) correct(int32_t r[2], uint32_t span, uint32_t distance,
+                                              int32_t jump, int32_t slope_change)
 {
-    /* Degree-six exp(ln(2)*fraction), Q30; integer octave handled exactly. */
-    static const int32_t c[7] = {
-        1073741824, 744261118, 257941248, 59597083, 10327387, 1431680, 165394
-    };
-    int whole = octaves / 65536, fraction = octaves % 65536;
-    if (fraction < 0) { fraction += 65536; whole--; }
-    int64_t factor = c[6];
-    for (int i = 5; i >= 0; --i)
-        factor = c[i] + factor * fraction / 65536;
-    uint64_t scaled = ((uint64_t)hz * (uint64_t)factor) >> 30;
-    scaled = whole >= 0 ? scaled << whole : scaled >> -whole;
-    return bounded(scaled > UINT32_MAX ? UINT32_MAX : (uint32_t)scaled);
-}
-
-static int32_t decimate(modeldigi_osc_state *s, unsigned stage, int32_t sample)
-{
-    unsigned at = s->filter[stage].position;
-    s->filter[stage].samples[at] = sample;
-    s->filter[stage].position = (at + 1) % 97;
-    if (!s->filter[stage].parity) return 0;
-    int64_t total = (int64_t)s->filter[stage].samples[(at + 97 - 48) % 97] * 536868186;
-    for (unsigned j = 0; j < 24; ++j) {
-        unsigned distance = 2 * j + 1;
-        int64_t pair = (int64_t)s->filter[stage].samples[(at + 97 - 48 + distance) % 97]
-                     + s->filter[stage].samples[(at + 97 - 48 - distance) % 97];
-        total += pair * halfband[j];
+    uint32_t t = since(span, distance);
+    uint32_t a = t > 65535 ? 65535 : t, b = 65536 - a;
+    uint32_t aa = (a * a) >> 16, bb = b > 65535 ? 65535 : (b * b) >> 16;
+    r[0] += mul16(jump, aa) >> 1;
+    r[1] -= mul16(jump, bb) >> 1;
+    if (slope_change) {
+        int32_t change = mulhi(slope_change, span);
+        r[0] += mul16(mul16(change, (aa * a) >> 16), 10923);
+        r[1] += mul16(mul16(change, (bb * b) >> 16), 10923);
     }
-    return (int32_t)(total / (INT64_C(1) << 30));
+}
+
+/* Per-render description of one voice: its level-scaled lines, steps and pulse levels; phases
+ * of events are in 2^-32 cycles, the resolution of event detection and pulse levels. */
+typedef struct {
+    unsigned shape;
+    int silent;
+    int32_t a[2], b[2], reset, knee, high, low;
+    uint32_t rise, fall;
+} voice_lines;
+
+static void describe(voice_lines *d, unsigned shape, uint32_t level)
+{
+    d->shape = shape;
+    d->silent = !level;
+    if (shape < 4) {
+        for (int k = 0; k < 2; ++k) {
+            d->a[k] = scaled(line_a[shape][k], level);
+            d->b[k] = scaled(line_b[shape][k], level);
+        }
+        d->reset = scaled(reset_step[shape], level);
+        d->knee = scaled(knee_slope[shape], level);
+    } else {
+        uint64_t w = widths[shape - 4];
+        int32_t low = -(int32_t)(w >> 21);
+        d->high = scaled(2 * Q + low, level);
+        d->low = scaled(low, level);
+        d->fall = (uint32_t)(w >> 17);
+        d->rise = 0u - d->fall;
+    }
+}
+
+/* a + b * x / 2^32 to within a unit: a 16-bit phase is too coarse for LO ramps, whose steps the
+ * halfband filters would ripple back across the mean. */
+HOT int32_t line(int32_t a, int32_t b, uint32_t x)
+{
+    return a + mul16(b, x >> 16) + (((b >> 16) * (int32_t)(x & 0xffff)) >> 16);
+}
+
+/* Value at a phase x in 2^-32 cycles. */
+HOT int32_t value(const voice_lines *d, uint32_t x)
+{
+    if (d->shape >= 4)
+        return x < d->fall || x >= d->rise ? d->high : d->low;
+    return line(d->a[x >> 31], d->b[x >> 31], x);
+}
+
+/* An event at phase `at` falls in the step from `old` of `span` (2^-32 cycles). */
+HOT int crossed(uint32_t at, uint32_t old, uint32_t span)
+{
+    return at - old - 1 < span;
+}
+
+/* One voice's running values, kept in registers across a chunk. */
+typedef struct {
+    uint64_t phase, last;
+    int32_t previous, held;
+} voice_run;
+
+/* Advance one sub-sample by inc; returns the held-back sample. */
+HOT int32_t advance(voice_run *r, const voice_lines *d, uint64_t inc)
+{
+    uint64_t phase = (r->phase + inc) & MASK;
+    uint32_t old = (uint32_t)(r->phase >> 16), x = (uint32_t)(phase >> 16), span = (uint32_t)(inc >> 16);
+    int32_t pure = value(d, x), fix[2] = { 0, 0 };
+    if (inc != r->last && d->shape < 4) {
+        /* A rate change at this boundary: a sixth of the slope-rate change, held back. Below 2^-20
+         * cycles per sub-sample (smooth modulation) the correction is under -120 dB and skipped. */
+        int32_t delta = (int32_t)((int64_t)(inc - r->last) >> 16);
+        if (delta >= 4096 || delta <= -4096) {
+            int32_t b = d->b[old >> 31];
+            int32_t change = delta >= 0 ? mulhi(b, (uint32_t)delta) : -mulhi(b, (uint32_t)-delta);
+            r->previous += mul16(change, 10923);
+        }
+    }
+    if (d->shape < 4) {
+        if (crossed(0, old, span))
+            correct(fix, span, 0u - old, d->reset, -d->knee);
+        if (d->knee && crossed(0x80000000u, old, span))
+            correct(fix, span, 0x80000000u - old, 0, d->knee);
+    } else {
+        if (crossed(d->fall, old, span))
+            correct(fix, span, d->fall - old, d->low - d->high, 0);
+        if (crossed(d->rise, old, span))
+            correct(fix, span, d->rise - old, d->high - d->low, 0);
+    }
+    int32_t output = r->previous + fix[0];
+    r->previous = pure + fix[1];
+    r->held = pure;
+    r->phase = phase;
+    r->last = inc;
+    return output;
+}
+
+/* At a render's first sub-sample: prime a fresh voice, or hold back half of a waveform or level
+ * step and a sixth of the slope-rate change, the residual of an event at the boundary itself. */
+static void begin(struct modeldigi_osc_voice *o, voice_run *r, const voice_lines *d, uint64_t inc, int fresh)
+{
+    r->phase = o->phase;
+    r->last = o->increment;
+    r->previous = o->previous;
+    r->held = o->held;
+    uint32_t old = (uint32_t)(o->phase >> 16);
+    if (!o->primed) {
+        r->previous = r->held = value(d, old);
+        r->last = inc;
+        o->primed = true;
+    } else if (fresh) {
+        unsigned k = old >> 31;
+        int32_t change = mulhi(d->shape < 4 ? d->b[k] : 0, (uint32_t)(inc >> 16))
+                       - mulhi(o->slope[k], (uint32_t)(o->increment >> 16));
+        r->previous += ((value(d, old) - r->held) >> 1) + mul16(change, 10923);
+        r->last = inc;
+    }
+    o->waveform = (uint8_t)d->shape;
+    o->slope[0] = d->shape < 4 ? d->b[0] : 0;
+    o->slope[1] = d->shape < 4 ? d->b[1] : 0;
+}
+
+static void finish(struct modeldigi_osc_voice *o, const voice_run *r)
+{
+    o->phase = r->phase;
+    o->increment = r->last;
+    o->previous = r->previous;
+    o->held = r->held;
+}
+
+/* steps * count, for a silent clock. */
+static uint64_t times(uint64_t step, uint32_t count)
+{
+    return ((uint64_t)((uint32_t)(step >> 32) * count) << 32) + mul64((uint32_t)step, count);
+}
+
+/* Run voice v for m sub-samples into mix (added, unless first); mod holds each sub-sample's
+ * modulation factor (t = 0: none), or is null. */
+static void run_voice(struct modeldigi_osc_voice *o, const voice_lines *d, uint64_t step,
+                      const octave_factor *mod, uint64_t lo, uint64_t hi,
+                      int32_t *mix, unsigned m, int fresh, int first)
+{
+    voice_run r;
+    if (d->silent && !fresh && o->primed) {
+        uint64_t phase = o->phase, inc = step;
+        if (mod) {
+            for (unsigned i = 0; i < m; ++i) {
+                inc = mod[i].t ? modulate(step, mod[i], lo, hi) : step;
+                phase += inc;
+            }
+        } else {
+            phase += times(step, m);
+        }
+        o->phase = phase & MASK;
+        o->increment = inc;
+        o->previous = o->held = 0;
+        if (first)
+            for (unsigned i = 0; i < m; ++i)
+                mix[i] = 0;
+        return;
+    }
+    begin(o, &r, d, mod && mod[0].t ? modulate(step, mod[0], lo, hi) : step, fresh);
+    for (unsigned i = 0; i < m; ++i) {
+        uint64_t inc = mod && mod[i].t ? modulate(step, mod[i], lo, hi) : step;
+        int32_t out = advance(&r, d, inc);
+        mix[i] = first ? out : mix[i] + out;
+    }
+    finish(o, &r);
+}
+
+/* a * d / 2^16 for a < 2^16. */
+HOT int32_t mulq16(uint32_t a, int32_t d)
+{
+    return (d >> 16) * (int32_t)a + (int32_t)((((uint32_t)d & 0xffff) * a) >> 16);
+}
+
+/* One branch: cascaded y = a (x - y') + x' sections; s[i] is section i's previous input and s[i + 1]
+ * its previous output. */
+HOT int32_t branch(int32_t *s, const uint16_t *a, unsigned first, unsigned count, int32_t x)
+{
+    unsigned k = 0;
+    for (unsigned i = first; i < count; i += 2, ++k) {
+        int32_t y = mulq16(a[i], x - s[k + 1]) + s[k];
+        s[k] = x;
+        x = y;
+    }
+    s[k] = x;
+    return x;
+}
+
+/* Decimate n samples by two in place: the first sample of each pair enters branch 1, the second
+ * branch 0, and the pair yields one output. Stage 0 runs at the highest rate. Passes always hold
+ * whole output frames, so pairs never straddle a pass. */
+static void decimate(modeldigi_osc_state *s, unsigned stage, int32_t *x, unsigned n)
+{
+    struct modeldigi_osc_filter *f = &s->filter[stage];
+    unsigned rate = MODELDIGI_OVERSAMPLE >> stage;   /* the stage's input rate, in 48 kHz units */
+    const uint16_t *a = rate == 2 ? allpass96 : rate == 4 ? allpass192 : rate == 8 ? allpass384 : allpass768;
+    unsigned count = rate == 2 ? 6 : rate == 4 ? 3 : 2;
+    for (unsigned i = 0; i < n; i += 2) {
+        int32_t odd = branch(f->state[1], a, 1, count, x[i]);
+        x[i / 2] = (branch(f->state[0], a, 0, count, x[i + 1]) >> 1) + (odd >> 1);
+    }
 }
 
 void modeldigi_osc_init(modeldigi_osc_state *state)
@@ -194,35 +401,71 @@ void modeldigi_osc_render(modeldigi_osc_state *s, const modeldigi_osc_params *p,
                          int32_t *output, size_t frames)
 {
     if (!frames) return;
-    unsigned shape[3];
-    uint32_t base[3];
+    voice_lines lines[3], control;
     uint64_t step[3];
+    int fresh[3];
     for (unsigned v = 0; v < 3; ++v) {
-        shape[v] = p->waveform[v] <= 6 ? p->waveform[v] : 0;
-        base[v] = bounded(p->frequency_q16_16[v]);
-        step[v] = increment(base[v]);
+        unsigned shape = p->waveform[v] <= 6 ? p->waveform[v] : 0;
+        describe(&lines[v], shape, p->level[v]);
+        step[v] = increment(bounded(p->frequency_q16_16[v]));
+        fresh[v] = s->voice[v].level != p->level[v] || s->voice[v].waveform != shape;
+        s->voice[v].level = p->level[v];
     }
     uint32_t depth = p->modulation_depth_q16_16 > 131072 ? 131072 : p->modulation_depth_q16_16;
-    for (size_t frame = 0; frame < frames; ++frame) {
-        for (unsigned sub = 0; sub < MODELDIGI_OVERSAMPLE; ++sub) {
-            int32_t octaves = p->modulation_enabled && depth
-                ? (int32_t)((int64_t)control(shape[2], s->voice[2].phase) * depth / Q) : 0;
-            int64_t sum = 0;
-            for (unsigned v = 0; v < 3; ++v) {
-                uint64_t ds = octaves && (v != 2 || p->osc3_control)
-                    ? increment(modulate(base[v], octaves)) : step[v];
-                sum += (int64_t)tick(s, v, shape[v], ds) * p->level[v] / 65535;
+    int modulated = p->modulation_enabled && depth;
+    int32_t oa[2] = { 0, 0 }, ob[2] = { 0, 0 }, on = 0;
+    uint64_t lo = increment(HZ_MIN), hi = increment(HZ_MAX);
+    if (modulated) {
+        /* Oscillator 3's control tap before its level, in octaves: opposite audio sign, halved,
+         * plus bias; pulses are 0..1, high during the audio-low interval. */
+        describe(&control, lines[2].shape, 65535);
+        if (control.shape < 4) {
+            for (int k = 0; k < 2; ++k) {
+                oa[k] = mulhi(-line_a[control.shape][k] / 2 + control_bias[control.shape], depth << 6);
+                ob[k] = mulhi(-line_b[control.shape][k] / 2, depth << 6);
             }
-            /* Q26 sum to Q31 with the approved 1/16 gain. */
-            int32_t sample = (int32_t)(sum * 2);
-            unsigned remaining = MODELDIGI_OVERSAMPLE;
-            for (unsigned stage = 0; remaining > 1; ++stage, remaining /= 2) {
-                unsigned parity = s->filter[stage].parity;
-                sample = decimate(s, stage, sample);
-                s->filter[stage].parity = parity ^ 1u;
-                if (!parity) break;
-            }
-            if (remaining == 1) output[frame] = sample;
+        } else {
+            on = (int32_t)depth;
         }
+    }
+    int32_t mix[CHUNK * MODELDIGI_OVERSAMPLE];
+    octave_factor mod[CHUNK * MODELDIGI_OVERSAMPLE];
+    for (size_t done = 0; done < frames;) {
+        unsigned n = frames - done < CHUNK ? (unsigned)(frames - done) : CHUNK;
+        unsigned m = n * MODELDIGI_OVERSAMPLE;
+        if (modulated) {
+            /* Oscillator 3 first: its phase before each sub-sample sets that sub-sample's factor,
+             * which also drives oscillator 3 itself when CONTROL connects it. */
+            struct modeldigi_osc_voice *o = &s->voice[2];
+            voice_run r;
+            int primed = o->primed;
+            for (unsigned i = 0; i < m; ++i) {
+                uint32_t x = (uint32_t)((i ? r.phase : o->phase) >> 16);
+                int32_t octaves = control.shape < 4 ? line(oa[x >> 31], ob[x >> 31], x)
+                                : x >= control.fall && x < control.rise ? on : 0;
+                mod[i] = factor(octaves);
+                if (!octaves)
+                    mod[i].t = 0;
+                uint64_t inc = p->osc3_control && octaves ? modulate(step[2], mod[i], lo, hi) : step[2];
+                if (!i)
+                    begin(o, &r, &lines[2], inc, fresh[2] || !primed);
+                mix[i] = lines[2].silent && !fresh[2] && primed ? (advance(&r, &lines[2], inc), 0)
+                                                                : advance(&r, &lines[2], inc);
+            }
+            finish(o, &r);
+            run_voice(&s->voice[0], &lines[0], step[0], mod, lo, hi, mix, m, fresh[0], 0);
+            run_voice(&s->voice[1], &lines[1], step[1], mod, lo, hi, mix, m, fresh[1], 0);
+        } else {
+            for (unsigned v = 0; v < 3; ++v)
+                run_voice(&s->voice[v], &lines[v], step[v], 0, lo, hi, mix, m, fresh[v], v == 0);
+        }
+        fresh[0] = fresh[1] = fresh[2] = 0;
+        for (unsigned i = 0; i < m; ++i)
+            mix[i] *= 2;   /* Q26 sum to Q31 with the approved 1/16 gain */
+        for (unsigned stage = 0, k = m; k > n; ++stage, k /= 2)
+            decimate(s, stage, mix, k);
+        for (unsigned i = 0; i < n; ++i)
+            output[done + i] = mix[i];
+        done += n;
     }
 }

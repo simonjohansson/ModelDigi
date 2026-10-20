@@ -40,6 +40,13 @@ static void splitting(void)
     }
 }
 
+/* Muting and levels must never disturb the three clocks. */
+static void same_clocks(const modeldigi_osc_state *a, const modeldigi_osc_state *b)
+{
+    for (unsigned v = 0; v < 3; ++v)
+        assert(a->voice[v].phase == b->voice[v].phase && a->voice[v].increment == b->voice[v].increment);
+}
+
 static void continuity(void)
 {
     modeldigi_osc_state a, b;
@@ -49,7 +56,7 @@ static void continuity(void)
     muted = p; muted.level[0] = 0;
     modeldigi_osc_render(&a, &p, samples, 1024);
     modeldigi_osc_render(&b, &muted, samples, 1024);
-    assert(!memcmp(a.voice, b.voice, sizeof(a.voice)));
+    same_clocks(&a, &b);
     for (unsigned i = 0; i < 1024; ++i) assert(samples[i] == 0);
     int32_t restored[1024];
     modeldigi_osc_render(&a, &p, samples, 1024);
@@ -69,7 +76,7 @@ static void continuity(void)
     muted.level[2] = 65535;
     modeldigi_osc_render(&a, &p, samples, 1024);
     modeldigi_osc_render(&b, &muted, samples, 1024);
-    assert(!memcmp(a.voice, b.voice, sizeof(a.voice)));
+    same_clocks(&a, &b);
 }
 
 static void bounds(void)
