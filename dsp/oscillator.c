@@ -325,8 +325,14 @@ static uint64_t times(uint64_t step, uint32_t count)
     return ((uint64_t)((uint32_t)(step >> 32) * count) << 32) + mul64((uint32_t)step, count);
 }
 
-/* Run voice v for m sub-samples into mix (added, unless first); mod holds each output frame's
- * modulation factor (t = 0: none), or is null. */
+HOT int changed(octave_factor a, octave_factor b)
+{
+    return a.t != b.t || a.whole != b.whole;
+}
+
+/* Run voice v for m sub-samples into mix (added, unless first); mod holds each sub-sample's
+ * modulation factor (t = 0: none), or is null. The modulated increment is recomputed only where
+ * the factor changes. */
 static void run_voice(struct modeldigi_osc_voice *o, const voice_lines *d, uint64_t step,
                       const octave_factor *mod, uint64_t lo, uint64_t hi,
                       int32_t *mix, unsigned m, int fresh, int first)
@@ -335,9 +341,10 @@ static void run_voice(struct modeldigi_osc_voice *o, const voice_lines *d, uint6
     if (d->silent && !fresh && o->primed) {
         uint64_t phase = o->phase, inc = step;
         if (mod) {
-            for (unsigned k = 0; k < m / MODELDIGI_OVERSAMPLE; ++k) {
-                inc = mod[k].t ? modulate(step, mod[k], lo, hi) : step;
-                phase += times(inc, MODELDIGI_OVERSAMPLE);
+            for (unsigned i = 0; i < m; ++i) {
+                if (!i || changed(mod[i], mod[i - 1]))
+                    inc = mod[i].t ? modulate(step, mod[i], lo, hi) : step;
+                phase += inc;
             }
         } else {
             phase += times(step, m);
@@ -353,8 +360,8 @@ static void run_voice(struct modeldigi_osc_voice *o, const voice_lines *d, uint6
     uint64_t inc = mod && mod[0].t ? modulate(step, mod[0], lo, hi) : step;
     begin(o, &r, d, inc, fresh);
     for (unsigned i = 0; i < m; ++i) {
-        if (mod && i % MODELDIGI_OVERSAMPLE == 0)
-            inc = mod[i / MODELDIGI_OVERSAMPLE].t ? modulate(step, mod[i / MODELDIGI_OVERSAMPLE], lo, hi) : step;
+        if (mod && i && changed(mod[i], mod[i - 1]))
+            inc = mod[i].t ? modulate(step, mod[i], lo, hi) : step;
         int32_t out = advance(&r, d, inc);
         mix[i] = first ? out : mix[i] + out;
     }
@@ -453,26 +460,29 @@ void modeldigi_osc_render(modeldigi_osc_state *s, const modeldigi_osc_params *p,
         unsigned n = frames - done < CHUNK ? (unsigned)(frames - done) : CHUNK;
         unsigned m = n * MODELDIGI_OVERSAMPLE;
         if (modulated) {
-            /* Oscillator 3 first: its phase at each output frame's start sets the factor oscillators
-             * 1 and 2 hold for that frame. With CONTROL, oscillator 3 follows its own factor every
-             * sub-sample: a held factor would delay its pulse and reset jumps and shift its pitch. */
+            /* Oscillator 3 first: its phase before a sub-sample sets that sub-sample's factor, which
+             * also drives oscillator 3 itself when CONTROL connects it. The factor is evaluated at
+             * each output frame's start and wherever oscillator 3 enters another segment, and held
+             * between: pulse levels stay exact, and ramp and reset jumps are never delayed. */
             struct modeldigi_osc_voice *o = &s->voice[2];
             voice_run r;
             int primed = o->primed;
             uint64_t inc = step[2];
+            octave_factor f = { 0, 0 };
+            unsigned segment = 0;
             for (unsigned i = 0; i < m; ++i) {
-                if (p->osc3_control || i % MODELDIGI_OVERSAMPLE == 0) {
-                    uint32_t x = (uint32_t)((i ? r.phase : o->phase) >> 32);
-                    int32_t octaves = control.shape < 4 ? line(oa[x >> 31], ob[x >> 31], x)
-                                    : x >= control.fall && x < control.rise ? on : 0;
-                    octave_factor f = factor(octaves);
+                uint32_t x = (uint32_t)((i ? r.phase : o->phase) >> 32);
+                unsigned k = control.shape < 4 ? x >> 31 : x >= control.fall && x < control.rise;
+                if (i % MODELDIGI_OVERSAMPLE == 0 || k != segment) {
+                    int32_t octaves = control.shape < 4 ? line(oa[k], ob[k], x) : k ? on : 0;
+                    segment = k;
+                    f = factor(octaves);
                     if (!octaves)
                         f.t = 0;
-                    if (i % MODELDIGI_OVERSAMPLE == 0)
-                        mod[i / MODELDIGI_OVERSAMPLE] = f;
                     if (p->osc3_control)
                         inc = octaves ? modulate(step[2], f, lo, hi) : step[2];
                 }
+                mod[i] = f;
                 if (!i)
                     begin(o, &r, &lines[2], inc, fresh[2] || !primed);
                 mix[i] = lines[2].silent && !fresh[2] && primed ? (advance(&r, &lines[2], inc), 0)
