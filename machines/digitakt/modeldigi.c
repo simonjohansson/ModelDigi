@@ -4,7 +4,7 @@
 #include "graphics.h"
 
 #define MODELDIGI_ID 42
-/* BR steps in whole units; the selectors borrow TUNE's native fine stepping. */
+/* BR steps in whole units; selectors and FRQ borrow TUNE's fine stepping. */
 #define LOOK_BR      0x86
 #define LOOK_TUNE    0x84
 
@@ -67,6 +67,10 @@ static int32_t frq3_text(char *buf, int32_t value, int32_t ctx, int32_t machine)
 #define KNOB(label, long_name, max_, def_, flags_, fmt_, draw_) \
     { .name = label, .lname = long_name, .look = LOOK_BR, .flags = CM_RANGE | CM_DEFAULT | (flags_), \
       .min = 0, .max = (max_) << 8, .def = (def_) << 8, .fmt = fmt_, .draw = draw_ }
+#define FREQUENCY(label, long_name, flags_, fmt_) \
+    { .name = label, .lname = long_name, .look = LOOK_TUNE, \
+      .flags = CM_RANGE | CM_DEFAULT | (flags_), .min = 0, .max = 127 << 8, \
+      .def = 64 << 8, .fmt = fmt_ }
 #define SELECTOR(label, long_name, def_, fmt_, draw_) \
     { .name = label, .lname = long_name, .look = LOOK_TUNE, \
       .flags = CM_RANGE | CM_DEFAULT | CM_DRAW, .min = 0, .max = 5 << 8, .def = (def_) << 8, \
@@ -86,10 +90,10 @@ static const struct cm_ui32 modeldigi_page = {
             SELECTOR("RNG1", "Osc 1 Range", 3, range_text, modeldigi_draw_range),
             SELECTOR("WAV1", "Osc 1 Wave", 2, wave12_text, modeldigi_draw_wave12),
             SELECTOR("RNG2", "Osc 2 Range", 3, range_text, modeldigi_draw_range),
-            KNOB("FRQ2", "Osc 2 Frequency", 127, 64, CM_NOT_SAMPLE, frq2_text, 0),
+            FREQUENCY("FRQ2", "Osc 2 Frequency", CM_NOT_SAMPLE, frq2_text),
             SELECTOR("WAV2", "Osc 2 Wave", 2, wave12_text, modeldigi_draw_wave12),
             SELECTOR("RNG3", "Osc 3 Range", 3, range_text, modeldigi_draw_range),
-            KNOB("FRQ3", "Osc 3 Frequency", 127, 64, 0, frq3_text, 0),
+            FREQUENCY("FRQ3", "Osc 3 Frequency", 0, frq3_text),
             SELECTOR("WAV3", "Osc 3 Wave", 2, wave3_text, modeldigi_draw_wave3),
         },
     },

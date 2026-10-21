@@ -70,9 +70,17 @@ Approved stored meanings:
 The range and waveform selectors borrow the stock TUNE control's finer encoder
 stepping, requiring several detents per position. Their values still span
 0–5, with the existing nearest-position rounding; incoming MIDI still picks
-exact positions. Other controls retain BR's whole-unit stepping. Frequency,
-tune and depth reuse its stock round visualization. UI-only graphics show waveform
-shapes, range footage, switches and level bars. Oscillator 3's second
+exact positions. FRQ2/3 use the same native fine stepping. Ordinary turns pause
+for three extra detents at each whole semitone; continued turns reach the values between.
+FUNC+turn takes about nine detents per semitone in the turn direction,
+including zero and negative offsets (128 detents across the full range).
+In the wider CONTROL-off range, it takes about two detents per semitone.
+Oscillator 3's wider CONTROL-off curve is unchanged;
+its intermediate semitone positions use the nearest existing stored fraction
+(within 0.15 cents of the displayed tuning amount). Held-step edits retain
+the native lock path. Other controls retain BR's whole-unit stepping.
+Frequency, tune and depth reuse the stock round visualization, without ticks.
+UI-only graphics show waveform shapes, range footage, switches and level bars. Oscillator 3's second
 waveform picture is reverse saw.
 These pictures do not change stored values or the audio path.
 

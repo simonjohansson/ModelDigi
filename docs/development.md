@@ -31,12 +31,12 @@ The project follows OB-1's separation of sound engine and device integration:
 ## Build steps
 
 Place stock Digitakt mk1 OS files in the ignored `firmware/` directory.
-Use the names `Digitakt_OS1.53.syx` and/or `Digitakt_OS1.54.syx`. Builds use
+Only OS1.54 is supported. Use the name `Digitakt_OS1.54.syx`. Builds use
 the SDK's hash verification and reject unknown firmware.
 
 | Command | Result |
 |---|---|
-| `mise run build` | Builds Core, machine-pages and ModelDigi for every local Digitakt OS; lints the machine with its dependencies. Artifacts go into `out/os<OS>/`. |
+| `mise run build` | Builds Core, machine-pages and ModelDigi for Digitakt OS1.54; lints the machine with its dependencies. Artifacts go into `out/os<OS>/`. |
 | `mise run firmware` | Builds and patches the selected stock OS into `out/Digitakt_ModelDigi.syx`. No device transfer. |
 | `mise run emu` | Builds firmware, prepares it in digiemu and opens its panel. Emulator data stays in `.digiemu/`. |
 | `mise run test` | Checks C oscillator state, splitting, bounds and routing, plus Digitakt control decoding, value text, page layout, actual single-oscillator output, state lifetime and track isolation. |
@@ -102,7 +102,7 @@ reserve in its worst tested case.
 links it with a small driver at a fixed address, and times six fixed
 scenarios under digiemu's cycle model, which uses the processor manual's
 timing tables and assumes zero-wait memory. It also reports any 64-bit
-runtime helper the engine would import. Stock 1.53's render is estimated at
+runtime helper the engine would import. The historical stock-render estimate is
 about 100,000 of the 166,700 cycles in each period at 250 MHz, so a 10%
 render margin leaves about 50,000 cycles for one instance or 25,000 for each
 of two. These are estimates; the firmware check's timing stage and the device

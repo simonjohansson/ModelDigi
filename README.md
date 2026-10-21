@@ -10,7 +10,7 @@ sequencer and shape its sound with the track's existing filter, amp and effects.
 
 ## What works today
 
-- Digitakt mk1 builds target **OS 1.53 and 1.54**. Digitone support is planned.
+- Digitakt mk1 builds target **OS 1.54 only**. Digitone support is planned.
 - The current device trial plays **oscillator 1 only**, with range, waveform,
   tuning, level and sequenced notes.
 - Oscillators 2 and 3 are silent, and oscillator modulation is disabled for

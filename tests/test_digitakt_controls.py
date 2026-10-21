@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--firmware', type=Path, required=True)
-    parser.add_argument('--os', choices=('1.53', '1.54'), required=True)
+    parser.add_argument('--os', choices=('1.54',), default='1.54')
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=False)
@@ -93,6 +93,48 @@ def main():
         assert uc.mem_read(sound() + 126, 1) == bytes([42])
         screen('osc-defaults')
         other = bytes(uc.mem_read(sound(1), 162))
+        tuning = {}
+        for encoder, cc, slot in (('D',19,20),('G',22,23)):
+            send([0xb0,25,127,0xb0,cc,64])
+            trace = [stored()[slot]]
+            for _ in range(8):
+                session.turn(session.encoder(encoder),1,after_ms=200)
+                trace.append(stored()[slot])
+            assert trace[:4] == [64 << 8]*4, trace
+            assert trace[-1] > trace[0] and all(0 <= b-a < 256 for a,b in zip(trace,trace[1:])),trace
+            # An eight-detent packet is natively capped to thirty quarter-counts.
+            # It must no longer leap several semitones from the low endpoint.
+            send([0xb0,cc,1])
+            session.press(session.code('FUNC'));wait(60)
+            coarse = [stored()[slot]]
+            for _ in range(3):
+                session.turn(session.encoder(encoder),8,after_ms=200)
+                coarse.append(stored()[slot])
+            assert coarse == [1 << 8,1 << 8,8 << 8,15 << 8],coarse
+            session.release(session.code('FUNC'));wait(60)
+            send([0xb0,cc,64])
+            session.press(session.code('FUNC'));wait(60)
+            for _ in range(3): session.turn(session.encoder(encoder),8,after_ms=200)
+            assert stored()[slot] == 92 << 8
+            for _ in range(3): session.turn(session.encoder(encoder),-8,after_ms=200)
+            assert stored()[slot] == 64 << 8
+            session.release(session.code('FUNC'));wait(60)
+            tuning[encoder] = dict(fine=trace,coarse_from_low=coarse)
+        send([0xb0,25,0,0xb0,22,64])
+        session.press(session.code('FUNC'));wait(60)
+        wide = []
+        for _ in range(5):
+            session.turn(session.encoder('G'),2,after_ms=200)
+            wide.append(stored()[23])
+        assert wide[-1] == 85 << 8,wide  # Five hundred cents in the wide curve.
+        for _ in range(5): session.turn(session.encoder('G'),-2,after_ms=200)
+        assert stored()[23] == 64 << 8
+        session.release(session.code('FUNC'));wait(60)
+        send([0xb0,25,127])
+        report['frequency_turns_8_8'] = tuning
+        report['wide_frequency_turns_8_8'] = wide
+        report['checks'].append('fine FRQ with stronger semitone hold; slower FUNC steps, zero crossing and CONTROL-off wide range')
+
         # Native fine stepping must take several detents to cross a selector position.
         selector_turns = {}
         for encoder, cc, slot in (('A',16,17), ('B',17,18), ('C',18,19),
@@ -171,7 +213,9 @@ def main():
         try:
             source_buf, saved_buf, loaded_buf = 0x10010000, 0x10011000, 0x10012000
             for pointer in (source_buf, saved_buf, loaded_buf): session.m.ensure(pointer)
-            original = bytes(uc.mem_read(sound(), 162))
+            original = bytearray(uc.mem_read(sound(),162))
+            for slot in (20,23): struct.pack_into('>h',original,20+2*slot,(64 << 8)+4)
+            original = bytes(original)
             uc.mem_write(source_buf, original)
             uc.mem_write(saved_buf, bytes(160))
             uc.mem_write(loaded_buf, bytes(162))

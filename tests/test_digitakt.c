@@ -147,7 +147,7 @@ static void descriptor(void)
         int selector = k < 8 && k != MD_FRQ2 && k != MD_FRQ3;
         assert((n->flags & (CM_RANGE | CM_DEFAULT)) == (CM_RANGE | CM_DEFAULT) && !(n->flags & CM_HIDDEN));
         assert(n->min == 0 && n->max == (selector ? 5 << 8 : 0x7f00) && n->def == def[k] << 8);
-        assert(n->name && strlen(n->name) <= 4 && n->lname && n->look == (selector ? 0x84 : 0x86));
+        assert(n->name && strlen(n->name) <= 4 && n->lname && n->look == (selector || k == MD_FRQ2 || k == MD_FRQ3 ? 0x84 : 0x86));
         int stock_dial = k == MD_FRQ2 || k == MD_FRQ3 || k == MD_TUNE || k == MD_DPTH;
         assert(!!(n->flags & CM_DRAW) == !stock_dial);
         assert(!!n->draw == !stock_dial);
@@ -316,8 +316,57 @@ static void midi_lookup(void)
         }
 }
 
+static void coarse_motion(void)
+{
+    for (int wide = 0; wide <= 1; wide++) {
+        int remainder = 0, steps = 0, last = 0;
+        for (int detent = 1; detent <= 128; ++detent) {
+            int n = modeldigi_frq_coarse(&remainder, 4, wide);
+            assert(n == 0 || n == 1);
+            if (n) {
+                int gap = detent-last;
+                assert(wide ? gap == 1 || gap == 2 : gap == 9 || gap == 10);
+                last = detent;
+            }
+            steps += n;
+        }
+        assert(steps == (wide ? 70 : 14) && remainder == 0);
+        assert(modeldigi_frq_coarse(&remainder, 512, wide) == steps && remainder == 0);
+    }
+}
+
+static void tuning_steps(void)
+{
+    for (int wide = 0; wide <= 1; wide++) {
+        int limit = wide ? 35 : 7;
+        int32_t value = 64 << 8;
+        for (int n = 1; n <= limit; n++) {
+            int32_t next = modeldigi_frq_step(value, 1, wide);
+            assert(next > value && modeldigi_frq_anchor(next, wide));
+            assert(abs((wide ? 5 : 1) * modeldigi_frq_cents(next) - 10000 * n) <= 15);
+            assert(modeldigi_frq_step(next - 1, 1, wide) == next);
+            if (next < (127 << 8)) assert(modeldigi_frq_step(next + 1, -1, wide) == next);
+            value = next;
+        }
+        assert(modeldigi_frq_step(value, 1, wide) == value);
+        for (int n = limit - 1; n >= -limit; n--) {
+            value = modeldigi_frq_step(value, -1, wide);
+            assert(abs((wide ? 5 : 1) * modeldigi_frq_cents(value) - 10000 * n) <= 15);
+        }
+        assert(value == (1 << 8));
+        assert(modeldigi_frq_step(0, 1, wide) == modeldigi_frq_step(value, 1, wide));
+        assert(modeldigi_frq_step(value, -1, wide) == value);
+        for (int v = 256; v < 127 * 256; v++) {
+            assert(modeldigi_frq_step(v, 1, wide) > v);
+            assert(modeldigi_frq_step(v, -1, wide) < v || v == 256);
+        }
+    }
+}
+
 int main(void)
 {
+    coarse_motion();
+    tuning_steps();
     midi_lookup();
     graphics();
     isolation();
