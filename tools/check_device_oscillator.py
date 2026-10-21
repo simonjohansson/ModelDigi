@@ -198,6 +198,7 @@ def main():
     report, audio = read_capture(args.capture)
     result = dict(mode=report['mode'], capture_sha256=sha256(args.capture/'capture.json'),
                   wav_sha256=report['wav_sha256'], target_sha256=sha256(TARGETS),
+                  renderer_sha256=sha256(args.renderer),
                   c_source_sha256=sha256(Path('dsp/oscillator.c')), decoder_source_sha256=sha256(Path('machines/digitakt/controls.c')),
                   verified_reference_recordings=sum(r['count'] for r in targets['source_manifests']) if files else 0,
                   verified_reference_unique_hashes=len(files),
