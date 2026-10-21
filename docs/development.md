@@ -119,6 +119,16 @@ The attributed total must equal the cycle clock, with no decoder mismatches.
 The report and debug images stay under ignored `out/profile-<factor>x/`.
 These are isolated engine estimates, not complete-firmware or physical-device timing.
 
+On hardware, time engine calls separately from the complete firmware render.
+The change from a zero-output baseline can include native processing and
+cache effects, so it is not an isolated engine cost. Calibrate timer overhead
+with an empty call and match call timestamps to the same native measurement
+windows. To test signal-dependent work, hold code, addresses and executed copy
+instructions constant and change only the delivered sample values; time the
+callback separately. Discarded output is an attribution diagnostic. Capacity
+acceptance still uses audible output and the complete render's worst-case
+reserve.
+
 The modulation task adds all 48 frozen slow-modulation cases, preserving span,
 cents of mean frequency and time-averaged cents. Each case renders its
 recording's duration, analyses the same window, and starts oscillator 3 at the
