@@ -69,6 +69,8 @@ run = [
   "out/test_digitakt",
   "cc -std=c99 -O2 -Wall -Wextra -Werror dsp/oscillator.c tests/test_oscillator.c -o out/test_oscillator",
   "out/test_oscillator",
+  "cc -std=c99 -O2 -Wall -Wextra -Werror -Wno-unused-function tests/test_edge.c -o out/test_edge",
+  "out/test_edge",
 ]
 
 [tasks."build:renderer"]

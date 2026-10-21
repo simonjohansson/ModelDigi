@@ -469,7 +469,7 @@ def stage_response(hz, rate):
     return 0.5 * (branches[0] + branches[1]/z) * z
 
 
-EDGE_HALF, EDGE_BETA, EDGE_CUTOFF = 8, 7.5, 21500.0
+EDGE_HALF, EDGE_BETA, EDGE_CUTOFF = 6, 5.5, 20500.0
 
 
 def edge_response(hz, rate):
