@@ -4,53 +4,63 @@ Instrument photograph: [Sweetwater](https://www.sweetwater.com/store/detail/Mini
 
 # ModelDigi
 
-A future Minimoog Model D clone for Elektron machines. The shared C oscillator
-bank runs in a host renderer against frozen reference targets. Device firmware
-has the machine and its two control pages. The current Digitakt trial renders
-oscillator 1 at the production 4× rate, with oscillators 2/3 silent and modulation disabled.
+An experimental Model D–style oscillator synth for the **Digitakt mk1**, and
+a first step toward a Minimoog Model D clone. Play it from the Digitakt's
+sequencer and shape its sound with the track's existing filter, amp and effects.
 
-The layout follows OB-1:
+## What works today
 
-- `dsp/`: shared, firmware-independent oscillator bank.
-- `machines/digitakt/`: Digitakt mk1 registration and render callback.
-- `machines/digitone/`: explicit placeholder for the future Digitone port.
-- `tests/`: oscillator mechanics, frozen numeric targets and device isolation checks.
-- `tools/`: actual-C WAV renderer and measurement-only comparisons.
-- `vendor/`: Elekloader SDK and digiemu, pinned to OB-1's dependency revisions.
+- Digitakt mk1 builds target **OS 1.53 and 1.54**. Digitone support is planned.
+- The current device trial plays **oscillator 1 only**, with range, waveform,
+  tuning, level and sequenced notes.
+- Oscillators 2 and 3 are silent, and oscillator modulation is disabled for
+  this performance trial. Their controls are visible, but do not affect the
+  sound yet. The image above shows the full control layout.
 
-Use mise from the repository root:
+The three-oscillator engine is tested on a computer; enabling the full bank
+on the Digitakt still needs further integration and performance checks.
+ModelDigi currently supplies the oscillator section, rather than the complete
+Model D filter, envelopes and amplifier.
 
-```sh
-mise trust
-mise bootstrap
-mise run test
-mise run test:oscillators
-mise run render out/saw.wav seconds=3 freq1=440 wave1=3
-mise run build
-mise run firmware
-mise run emu
-```
+## Playing ModelDigi
 
-`test:modulation` checks the frozen slow-modulation cases; `test:refinement`
-doubles the same C engine's internal rate. These host tasks need no private
-recordings or stock firmware. See [Development](docs/development.md) for explicit
-local recording comparisons and the remaining qualification limits.
+Select **ModelDigi** as a track's SRC machine. Press **SRC** to switch between
+its two pages:
 
-Supply stock Digitakt mk1 OS 1.53 or 1.54 in `firmware/`, named
-`Digitakt_OS1.53.syx` or `Digitakt_OS1.54.syx`, before building. The firmware
-task selects OS 1.54 by default and writes `out/Digitakt_ModelDigi.syx` with
-the four-character version `MDIG`. It builds a file only.
+- **OSC:** oscillator ranges and waveforms, plus relative tuning for oscillators
+  2 and 3.
+- **MIX:** master tuning, oscillator levels, oscillator 3 control, and modulation
+  on/off and depth.
 
-The Digitakt build registers **ModelDigi** as machine 42, with two SRC pages
-(press SRC to flip between OSC and MIX). Oscillator 1 follows its range,
-waveform, tune, level and trig note. The other oscillator and modulation values
-retain their stored meanings but are disabled for this timing trial. Other
-tracks retain their audio. In the emulator, use FUNC+SRC to choose the machine.
+For the current trial, use **RNG1**, **WAV1**, **TUNE** and **LEV1** to shape
+oscillator 1. Other tracks keep their own sounds.
 
-Unqualified build, firmware and emu tasks dispatch to both device targets.
-Digitone tasks currently print a placeholder message and return success;
-they produce no artifacts and open no emulator. Use `:digitakt` or
-`:digitone` to select a target.
+## CPU use
 
-See [Architecture](docs/architecture.md), [Development](docs/development.md)
-and [AGENTS.md](AGENTS.md). Code is GPL-2.0-or-later; see [LICENSE](LICENSE).
+**ModelDigi is a CPU-heavy mod.** It generates its waveforms in real time at
+four times the audio output rate, then applies waveform corrections and
+filtering to reduce unwanted digital tones (aliasing). Enabling all three
+oscillators and their pitch modulation adds further work, including the
+possibility of oscillator 3 modulating itself. This processing shares the
+Digitakt's CPU with its other tracks and effects.
+
+Full-bank performance and the supported number of simultaneous ModelDigi
+tracks are still being qualified.
+
+We recommend including [DigiHealth](https://github.com/irpina/digihealth#install)
+when composing your firmware in Elekloader, and leaving
+**SETTINGS → FAST AUDIO** ON. FAST AUDIO runs the Digitakt's existing audio
+code from faster memory to free up processing time.
+
+## Firmware and documentation
+
+ModelDigi is included in a custom OS composed with Elekloader using your own
+stock Elektron OS file. See the [build and firmware guide](docs/development.md#build-steps)
+for preparation instructions.
+
+[Development and verification](docs/development.md) covers setup, mise tasks,
+the code layout and testing. [Architecture](docs/architecture.md) explains the
+engine and device integration. The [oscillator research](docs/model-d-oscillators.md)
+documents the Model D behavior being modeled.
+
+Code is GPL-2.0-or-later; see [LICENSE](LICENSE).

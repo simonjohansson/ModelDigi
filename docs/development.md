@@ -3,6 +3,7 @@
 Use mise for tools and all project steps. A host C compiler is needed for
 tests. Firmware compilation uses the same Homebrew m68k toolchain setup as
 OB-1; bootstrap also installs CMake for the emulator's patched Unicorn.
+Read [AGENTS.md](../AGENTS.md) before contributing.
 
 ```sh
 mise trust
@@ -15,6 +16,17 @@ dependencies through uv with mise's Python, and builds patched Unicorn.
 Host tests need neither stock firmware nor the cross-compiler, but the
 Digitakt test requires the SDK submodule's headers. For host-only setup,
 use `mise install` and `git submodule update --init vendor/elekloader`.
+
+## Repository layout
+
+The project follows OB-1's separation of sound engine and device integration:
+
+- `dsp/`: shared, firmware-independent oscillator bank.
+- `machines/digitakt/`: Digitakt mk1 registration and render callback.
+- `machines/digitone/`: explicit placeholder for the future Digitone port.
+- `tests/`: oscillator mechanics, frozen numeric targets and device isolation checks.
+- `tools/`: actual-C WAV renderer and measurement-only comparisons.
+- `vendor/`: Elekloader SDK and digiemu, pinned to OB-1's dependency revisions.
 
 ## Build steps
 
@@ -34,12 +46,18 @@ subtask is a successful placeholder with no artifact or panel. Direct
 `:digitakt` and `:digitone` variants are available. `build:deps` builds
 only the dependencies.
 
-Select the stock OS with `ELEKLOADER_STOCK` in `mise.toml`; firmware paths
-must follow the filename convention above. `FW_VERSION` is the firmware's
-four-character version, currently `MDIG`. Builds clear old `.elemod` files
-only in the matching output directories. Firmware packaging includes only
+Select the stock OS with `ELEKLOADER_STOCK` in `mise.toml`; the default is
+OS 1.54, and firmware paths must follow the filename convention above.
+`FW_VERSION` is the firmware's four-character version, currently `MDIG`.
+Builds clear old `.elemod` files only in the matching output directories.
+Firmware packaging includes only
 Core, machine-pages and ModelDigi. The emulator retains earlier builds and
 their sessions rather than deleting them automatically.
+
+The Digitakt build registers ModelDigi as machine 42. In the emulator, use
+FUNC+SRC to choose it, then SRC to switch between OSC and MIX. The current
+trial sounds only oscillator 1; oscillator 2/3 and modulation values retain
+their stored meanings while their sound and modulation are disabled.
 
 ## Oscillator development
 
