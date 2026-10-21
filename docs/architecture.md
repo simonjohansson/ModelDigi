@@ -15,8 +15,7 @@ trial: oscillator 1 at the production 4× rate, with oscillators 2/3 silent and 
 | Stock firmware | Sequencing and track processing around the custom source. |
 
 The Digitakt callback inspects eight tracks and replaces only ModelDigi
-blocks, leaving other tracks untouched. It uses the SDK render event and
-contains no private firmware addresses or extra patch sites. Audio callbacks
+blocks, leaving other tracks untouched. It uses the SDK render event. Audio callbacks
 must remain bounded and must not allocate, perform I/O or wait.
 Each track owns its bank state, initialized when entering ModelDigi and kept
 across trigs, note changes and source muting. Oscillators 2/3 still advance
@@ -44,10 +43,16 @@ companion provides, and each page is stored where it is shown:
 | OSC | Osc 1 range | Osc 1 wave | Osc 2 range | Osc 2 frequency | Osc 2 wave | Osc 3 range | Osc 3 frequency | Osc 3 wave |
 | MIX | Tune | Osc 3 control | Modulation | Mod depth | Osc 1 level | Osc 2 level | Osc 3 level | blank |
 
-The OSC page uses the bank's first eight slots, which carry MIDI CC 16–23;
-the MIX page uses the companion's seven extra slots, which carry no MIDI and
-are fixed at 0–127. Ranges and waveforms are six-position selectors; the two
-switches flip at the midpoint. Approved stored meanings:
+The OSC page uses MIDI CC 16–23 in the order above. The MIX page uses
+CC 24–30 in order: Tune, Control, Modulation, Depth, Level 1, Level 2 and
+Level 3. Incoming selectors clamp to 0–5; all other controls use 0–127.
+The two switches flip at 64. Native track channels, auto channel and receive
+settings still apply. A temporary local lookup hook adds the extra CCs only
+for ModelDigi audio tracks; the native lookup handles other machines, MIDI
+tracks, FX and unrelated controllers. A second hook supplies each control's
+declared range to incoming MIDI, matching encoder limits.
+
+Approved stored meanings:
 
 - Oscillator 2/3 frequency: centre is unison; steps grow quadratically to
   exact semitones at ±1, then fall on every semitone to ±7 (0.23 cents is the
@@ -62,9 +67,10 @@ switches flip at the midpoint. Approved stored meanings:
 - Cold defaults: one saw at 8' at full level, oscillators 2 and 3 silent,
   modulation off, CONTROL on, everything centred.
 
-Every value borrows SLICE's BR knob, which steps in whole units and draws a
-plain dial; selectors spread their six positions over it. TUNE's and LEV's
-knobs step in fractions, and PLAY's graphic shows play modes.
+Every value retains SLICE's BR whole-unit encoder stepping. UI-only graphics
+show waveform shapes, range footage, centred tuning dials, switches, depth
+and level bars. Oscillator 3's second waveform picture is reverse saw.
+These pictures do not change stored values or the audio path.
 
 Decoding runs once per 32-sample block from values after locks and LFOs.
 Selectors round to the nearest position; continuous values use the fraction

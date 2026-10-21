@@ -35,6 +35,10 @@ its two pages:
 For the current trial, use **RNG1**, **WAV1**, **TUNE** and **LEV1** to shape
 oscillator 1. Other tracks keep their own sounds.
 
+MIDI CC 16–23 control OSC; CC 24–30 control MIX in page order. Selectors use
+0–5, and other values use 0–127. See Development for the companion-version
+requirement before testing saved sounds.
+
 ## CPU use
 
 **ModelDigi is a CPU-heavy mod.** It generates its waveforms in real time at

@@ -9,10 +9,18 @@
  "device": "digitakt-mk1",
  "os": "1.53",
  "ports": {"1.54": {}},
- "sources": ["modeldigi.c", "controls.c", "../../dsp/oscillator.c"],
+ "sources": ["modeldigi.c", "controls.c", "graphics.c", "core-candidate.s", "../../dsp/oscillator.c"],
  "cflags": ["-DMODELDIGI_OVERSAMPLE=4"],
+ "sites": [
+  {"addr": "0x4007919e", "stock": "2f02747f202f0008", "op": "jmp", "target": "core_midi_cc_parameter"},
+  {"addr": "0x40010d50", "stock": "4eb940078f0c", "op": "keep2", "target": "mp_prange_s"}
+ ],
  "machines": [{"id": 42, "descriptor": "modeldigi_machine"}],
- "subscribe": [{"event": "ev_render_voices", "fn": "modeldigi_digitakt_render", "order": 20}],
+ "collections": {"ev_midi_cc_parameter": 4},
+ "subscribe": [
+  {"event": "ev_midi_cc_parameter", "fn": "modeldigi_midi_cc_parameter", "order": 20},
+  {"event": "ev_render_voices", "fn": "modeldigi_digitakt_render", "order": 20}
+ ],
  "requires": ["core", "machine-pages"],
  "resources": {"core": "3.0", "names": ["machine:42"]}
 }

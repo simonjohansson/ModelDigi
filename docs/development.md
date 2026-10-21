@@ -186,6 +186,26 @@ the recordings do not isolate mixer transfer or match free-running phases.
 
 ## Evidence boundaries
 
+For compiled Digitakt control checks, supply an already packaged image:
+
+```sh
+mise run test:firmware:controls --firmware out/Digitakt_ModelDigi.syx --os 1.54 --out out/control-check
+```
+
+The output directory must be new. This check boots native firmware, exercises
+CC 16–30 through the emulated DIN receiver, checks stored and live values,
+tests unrelated lookup fallbacks and captures both pages across selector and
+switch positions. It preserves the emulator's MIDI semaphore guard and paces
+input to its UART model; it does not establish burst throughput or USB MIDI
+behavior. The check neither builds firmware nor transfers it to a device.
+
+The pinned machine-pages 1.2 still has a known in-place saved-record update
+defect. Persistence acceptance requires the separately tested 1.2.1 fix;
+successful control checks alone do not qualify the pinned package for saving
+sounds. Keep the exact companion source and image hashes with local evidence
+until the dependency update is delivered. Existing damaged records require a
+complete re-save after their values have been restored.
+
 Host tests verify oscillator behavior and adapter isolation, not complete firmware execution.
 SDK lint and firmware packaging verify linking and patch constraints, not
 hardware operation. Opening the emulator is separate from host tests.

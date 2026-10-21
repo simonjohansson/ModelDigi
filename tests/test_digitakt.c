@@ -12,8 +12,18 @@ volatile uint32_t fw_voice_start;
 volatile uint32_t fw_active_track;
 uint8_t *volatile fw_kit;
 const char cm_ui_v32[] = "UI32";
+const char fw_bitmap_vt[] = "Bitmap";
+static uint8_t bitmap[17][17];
+void fw_fillrect(void *bmp, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t colour)
+{
+    assert(bmp == bitmap && x0 >= 1 && x1 <= 17 && y0 >= 0 && y1 <= 16);
+    assert(x1 >= x0 && y1 >= y0 && (colour == 0 || colour == 1));
+    for (int y = y0; y <= y1; ++y)
+        for (int x = x0; x <= x1; ++x) bitmap[y][x - 1] = (uint8_t)colour;
+}
 extern const struct cm_machine modeldigi_machine;
 extern void modeldigi_digitakt_render(int32_t *blocks);
+extern int32_t modeldigi_midi_cc_parameter(int32_t track, int32_t machine, int32_t cc);
 static int16_t live_values[8][MD_VALUES];
 
 int32_t cm_src_value(int32_t track, int32_t parameter)
@@ -138,7 +148,7 @@ static void descriptor(void)
         assert((n->flags & (CM_RANGE | CM_DEFAULT)) == (CM_RANGE | CM_DEFAULT) && !(n->flags & CM_HIDDEN));
         assert(n->min == 0 && n->max == (selector ? 5 << 8 : 0x7f00) && n->def == def[k] << 8);
         assert(n->name && strlen(n->name) <= 4 && n->lname && n->look == 0x86);
-        assert(!n->gfx == !selector && (!selector || n->gfx(5 << 8) == 127 << 8));
+        assert((n->flags & CM_DRAW) && n->draw);
         assert(!(n->flags & CM_NOT_SAMPLE) == (k != MD_FRQ2));   /* knob D */
     }
 }
@@ -257,8 +267,51 @@ static void text(void)
     fw_kit = 0;
 }
 
+static void graphics(void)
+{
+    static const int32_t values[] = {INT32_MIN, -32768, 0, 128, 256, 512, 768, 1024, 1280,
+                                     63 << 8, 64 << 8, 127 << 8, 32767, INT32_MAX};
+    uint8_t images[6][17][17];
+    for (int k = 0; k < MD_VALUES; ++k)
+        for (unsigned v = 0; v < sizeof values / sizeof *values; ++v) {
+            memset(bitmap, 0xa5, sizeof bitmap);
+            assert(knob(k)->draw(bitmap, 0, 0, values[v], 0));
+            uint8_t before[17][17]; memcpy(before, bitmap, sizeof bitmap);
+            assert(knob(k)->draw(bitmap, 0, 0, values[v], 1));
+            assert(!memcmp(before, bitmap, sizeof bitmap));
+            int lit = 0;
+            for (int y = 0; y < 17; ++y)
+                for (int x = 0; x < 17; ++x) { assert(bitmap[y][x] <= 1); lit += bitmap[y][x]; }
+            assert(lit > 0 && lit < 17 * 17);
+        }
+    for (int i = 0; i < 6; ++i) {
+        knob(MD_WAV1)->draw(bitmap, 0, 0, i << 8, 0);
+        memcpy(images[i], bitmap, sizeof bitmap);
+        for (int j = 0; j < i; ++j) assert(memcmp(images[j], bitmap, sizeof bitmap));
+        knob(MD_WAV3)->draw(bitmap, 0, 0, i << 8, 0);
+        assert((memcmp(images[i], bitmap, sizeof bitmap) != 0) == (i == 1));
+    }
+    knob(MD_CTRL)->draw(bitmap, 0, 0, 63 << 8, 0); memcpy(images[0], bitmap, sizeof bitmap);
+    knob(MD_CTRL)->draw(bitmap, 0, 0, 64 << 8, 0); assert(memcmp(images[0], bitmap, sizeof bitmap));
+    knob(MD_TUNE)->draw(bitmap, 0, 0, 64 << 8, 0);
+    assert(bitmap[7][8] && bitmap[16][8]);
+    assert(modeldigi_machine.icon);
+}
+
+static void midi_lookup(void)
+{
+    for (int track = -1; track <= 16; ++track)
+        for (int cc = 0; cc < 128; ++cc) {
+            int expected = track >= 0 && track < 8 && cc >= 24 && cc <= 30 ? 164 + cc - 24 : 0;
+            assert(modeldigi_midi_cc_parameter(track, 42, cc) == expected);
+            assert(modeldigi_midi_cc_parameter(track, 3, cc) == 0);
+        }
+}
+
 int main(void)
 {
+    midi_lookup();
+    graphics();
     isolation();
     render_lifetime();
     descriptor();

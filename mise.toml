@@ -67,7 +67,7 @@ run = [
   "mkdir -p out",
   "cc -std=c99 -O2 -Wall -Wextra -Werror dsp/dsp.c tests/test_dsp.c -o out/test_dsp",
   "out/test_dsp",
-  "cc -std=c99 -O2 -Wall -Wextra -Werror -Ivendor/elekloader/elekloader/sdk/include dsp/oscillator.c machines/digitakt/modeldigi.c machines/digitakt/controls.c tests/test_digitakt.c -lm -o out/test_digitakt",
+  "cc -std=c99 -O2 -Wall -Wextra -Werror -Ivendor/elekloader/elekloader/sdk/include dsp/oscillator.c machines/digitakt/modeldigi.c machines/digitakt/controls.c machines/digitakt/graphics.c tests/test_digitakt.c -lm -o out/test_digitakt",
   "out/test_digitakt",
   "cc -std=c99 -O2 -Wall -Wextra -Werror dsp/oscillator.c tests/test_oscillator.c -o out/test_oscillator",
   "out/test_oscillator",
@@ -79,6 +79,10 @@ run = [
   "mkdir -p out",
   "cc -std=c99 -O2 -Wall -Wextra -Werror dsp/oscillator.c tools/render.c -lm -o out/render",
 ]
+
+[tasks."test:firmware:controls"]
+description = "Exercise compiled Digitakt MIDI and graphics with explicit firmware, OS and output paths"
+run = 'uv run --python "$(mise which python)" --project vendor/digiemu python tests/test_digitakt_controls.py "$@"'
 
 [tasks.render]
 description = "Render C oscillator audio: OUT.wav [seconds=3 freq1=440 wave1=3 ...]"
