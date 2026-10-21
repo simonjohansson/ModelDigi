@@ -194,7 +194,8 @@ mise run test:firmware:controls --firmware out/Digitakt_ModelDigi.syx --os 1.54 
 
 The output directory must be new. This check boots native firmware, exercises
 CC 16–30 through the emulated DIN receiver, checks stored and live values,
-tests unrelated lookup fallbacks and captures both pages across selector and
+verifies that frequency edits reach the working saved record, tests unrelated
+lookup fallbacks and captures both pages across selector and
 switch positions. It preserves the emulator's MIDI semaphore guard and paces
 input to its UART model; it does not establish burst throughput or USB MIDI
 behavior. The check neither builds firmware nor transfers it to a device.

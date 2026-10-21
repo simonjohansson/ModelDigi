@@ -113,7 +113,7 @@ int modeldigi_tuning_encoder(void *brain, const int32_t *event)
         }
     }
     if (function || after != modeldigi_view_value(view, id, &locked))
-        modeldigi_parameter_set(parameter, id, after, 0, 0, 0, 0);
+        modeldigi_parameter_set(parameter, id, after, 0, 1, 1, 1);
     last_value = after;
     return 1;
 }

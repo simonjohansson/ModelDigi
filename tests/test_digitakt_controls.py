@@ -75,6 +75,20 @@ def main():
             values = stored()
             return values[17:25] + values[46:53]
 
+        def check_working_record():
+            # Load the actual working record, not a freshly encoded live sound.
+            saved, loaded = 0x4095941c, 0x10013000
+            assert bytes(uc.mem_read(saved, 8)) == bytes.fromhex('beefbace00000004')
+            session.m.ensure(loaded)
+            context = uc.context_save()
+            try:
+                session.m._fast_stepper_obj.left = 200000
+                assert call(session.m, 0x4007a236, [loaded, saved]) & 255 == 1
+                assert bytes(uc.mem_read(loaded + 20, 106)) == bytes(uc.mem_read(sound() + 20, 106))
+                assert bytes(uc.mem_read(loaded + 126, 1)) == bytes([42])
+            finally:
+                uc.context_restore(context)
+
         def send(data):
             midi.put(bytes(data))
             for _ in range(1000):
@@ -102,6 +116,7 @@ def main():
                 trace.append(stored()[slot])
             assert trace[:4] == [64 << 8]*4, trace
             assert trace[-1] > trace[0] and all(0 <= b-a < 256 for a,b in zip(trace,trace[1:])),trace
+            check_working_record()
             # An eight-detent packet is natively capped to thirty quarter-counts.
             # It must no longer leap several semitones from the low endpoint.
             send([0xb0,cc,1])
@@ -111,6 +126,7 @@ def main():
                 session.turn(session.encoder(encoder),8,after_ms=200)
                 coarse.append(stored()[slot])
             assert coarse == [1 << 8,1 << 8,8 << 8,15 << 8],coarse
+            check_working_record()
             session.release(session.code('FUNC'));wait(60)
             send([0xb0,cc,64])
             session.press(session.code('FUNC'));wait(60)
@@ -118,6 +134,7 @@ def main():
             assert stored()[slot] == 92 << 8
             for _ in range(3): session.turn(session.encoder(encoder),-8,after_ms=200)
             assert stored()[slot] == 64 << 8
+            check_working_record()
             session.release(session.code('FUNC'));wait(60)
             tuning[encoder] = dict(fine=trace,coarse_from_low=coarse)
         send([0xb0,25,0,0xb0,22,64])
@@ -127,13 +144,16 @@ def main():
             session.turn(session.encoder('G'),2,after_ms=200)
             wide.append(stored()[23])
         assert wide[-1] == 85 << 8,wide  # Five hundred cents in the wide curve.
+        check_working_record()
         for _ in range(5): session.turn(session.encoder('G'),-2,after_ms=200)
         assert stored()[23] == 64 << 8
+        check_working_record()
         session.release(session.code('FUNC'));wait(60)
         send([0xb0,25,127])
         report['frequency_turns_8_8'] = tuning
         report['wide_frequency_turns_8_8'] = wide
         report['checks'].append('fine FRQ with stronger semitone hold; slower FUNC steps, zero crossing and CONTROL-off wide range')
+        report['checks'].append('working version-4 record follows fine, FUNC, reverse and wide tuning edits')
 
         # Native fine stepping must take several detents to cross a selector position.
         selector_turns = {}
