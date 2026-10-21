@@ -147,8 +147,7 @@ static void descriptor(void)
         int selector = k < 8 && k != MD_FRQ2 && k != MD_FRQ3;
         assert((n->flags & (CM_RANGE | CM_DEFAULT)) == (CM_RANGE | CM_DEFAULT) && !(n->flags & CM_HIDDEN));
         assert(n->min == 0 && n->max == (selector ? 5 << 8 : 0x7f00) && n->def == def[k] << 8);
-        int range = k == MD_RNG1 || k == MD_RNG2 || k == MD_RNG3;
-        assert(n->name && strlen(n->name) <= 4 && n->lname && n->look == (range ? 0x84 : 0x86));
+        assert(n->name && strlen(n->name) <= 4 && n->lname && n->look == (selector ? 0x84 : 0x86));
         int stock_dial = k == MD_FRQ2 || k == MD_FRQ3 || k == MD_TUNE || k == MD_DPTH;
         assert(!!(n->flags & CM_DRAW) == !stock_dial);
         assert(!!n->draw == !stock_dial);

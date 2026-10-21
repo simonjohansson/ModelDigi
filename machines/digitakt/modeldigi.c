@@ -4,7 +4,7 @@
 #include "graphics.h"
 
 #define MODELDIGI_ID 42
-/* BR steps in whole units; the range selectors borrow TUNE's native fine stepping. */
+/* BR steps in whole units; the selectors borrow TUNE's native fine stepping. */
 #define LOOK_BR      0x86
 #define LOOK_TUNE    0x84
 
@@ -68,11 +68,9 @@ static int32_t frq3_text(char *buf, int32_t value, int32_t ctx, int32_t machine)
     { .name = label, .lname = long_name, .look = LOOK_BR, .flags = CM_RANGE | CM_DEFAULT | (flags_), \
       .min = 0, .max = (max_) << 8, .def = (def_) << 8, .fmt = fmt_, .draw = draw_ }
 #define SELECTOR(label, long_name, def_, fmt_, draw_) \
-    KNOB(label, long_name, 5, def_, CM_DRAW, fmt_, draw_)
-#define RANGE(label, long_name) \
     { .name = label, .lname = long_name, .look = LOOK_TUNE, \
-      .flags = CM_RANGE | CM_DEFAULT | CM_DRAW, .min = 0, .max = 5 << 8, .def = 3 << 8, \
-      .fmt = range_text, .draw = modeldigi_draw_range }
+      .flags = CM_RANGE | CM_DEFAULT | CM_DRAW, .min = 0, .max = 5 << 8, .def = (def_) << 8, \
+      .fmt = fmt_, .draw = draw_ }
 
 static const struct cm_src_page pages[] = {
     { .title = "OSC 1/2", .parameter = { MD_RNG1, MD_WAV1, MD_RNG2, MD_FRQ2, MD_WAV2, MD_RNG3, MD_FRQ3, MD_WAV3 } },
@@ -85,12 +83,12 @@ static const struct cm_ui32 modeldigi_page = {
         .page_from = 3,
         .group = "ModelDigi",
         .knob = {
-            RANGE("RNG1", "Osc 1 Range"),
+            SELECTOR("RNG1", "Osc 1 Range", 3, range_text, modeldigi_draw_range),
             SELECTOR("WAV1", "Osc 1 Wave", 2, wave12_text, modeldigi_draw_wave12),
-            RANGE("RNG2", "Osc 2 Range"),
+            SELECTOR("RNG2", "Osc 2 Range", 3, range_text, modeldigi_draw_range),
             KNOB("FRQ2", "Osc 2 Frequency", 127, 64, CM_NOT_SAMPLE, frq2_text, 0),
             SELECTOR("WAV2", "Osc 2 Wave", 2, wave12_text, modeldigi_draw_wave12),
-            RANGE("RNG3", "Osc 3 Range"),
+            SELECTOR("RNG3", "Osc 3 Range", 3, range_text, modeldigi_draw_range),
             KNOB("FRQ3", "Osc 3 Frequency", 127, 64, 0, frq3_text, 0),
             SELECTOR("WAV3", "Osc 3 Wave", 2, wave3_text, modeldigi_draw_wave3),
         },

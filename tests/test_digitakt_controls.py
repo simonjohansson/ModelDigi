@@ -93,9 +93,10 @@ def main():
         assert uc.mem_read(sound() + 126, 1) == bytes([42])
         screen('osc-defaults')
         other = bytes(uc.mem_read(sound(1), 162))
-        # Native fine stepping must take several detents to cross a range position.
-        range_turns = {}
-        for encoder, cc, slot in (('A',16,17), ('C',18,19), ('F',21,22)):
+        # Native fine stepping must take several detents to cross a selector position.
+        selector_turns = {}
+        for encoder, cc, slot in (('A',16,17), ('B',17,18), ('C',18,19),
+                                 ('E',20,21), ('F',21,22), ('H',23,24)):
             send([0xb0, cc, 3])
             unchanged = stored()
             trace = [unchanged[slot]]
@@ -120,9 +121,9 @@ def main():
             changed = stored(); changed[slot] = unchanged[slot]
             assert changed == unchanged, (encoder, unchanged, changed)
             assert bytes(uc.mem_read(sound(1), 162)) == other
-            range_turns[encoder] = dict(forward=trace, backward=backwards)
-        report['range_encoder_turns_8_8'] = range_turns
-        report['checks'].append('native range encoders require multiple detents, reverse and clamp independently')
+            selector_turns[encoder] = dict(forward=trace, backward=backwards)
+        report['selector_encoder_turns_8_8'] = selector_turns
+        report['checks'].append('native range/wave encoders require multiple detents, reverse and clamp independently')
 
         # Lookup ABI and native fallback, independent of the UART receive path.
         for track, machine, cc, expected in ((0,42,24,164),(7,42,30,170),(0,42,16,132),
