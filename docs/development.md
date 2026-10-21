@@ -26,7 +26,7 @@ The project follows OB-1's separation of sound engine and device integration:
 - `machines/digitone/`: explicit placeholder for the future Digitone port.
 - `tests/`: oscillator mechanics, frozen numeric targets and device isolation checks.
 - `tools/`: actual-C WAV renderer and measurement-only comparisons.
-- `vendor/`: Elekloader SDK and digiemu, pinned to OB-1's dependency revisions.
+- `vendor/`: Elekloader SDK and digiemu, pinned to reviewed revisions.
 
 ## Build steps
 
@@ -239,18 +239,19 @@ switch positions. It preserves the emulator's MIDI semaphore guard and paces
 input to its UART model; it does not establish burst throughput or USB MIDI
 behavior. The check neither builds firmware nor transfers it to a device.
 
-The pinned machine-pages 1.2 still has a known in-place saved-record update
-defect. Persistence acceptance requires the separately tested 1.2.1 fix;
-successful control checks alone do not qualify the pinned package for saving
-sounds. Keep the exact companion source and image hashes with local evidence
-until the dependency update is delivered. Existing damaged records require a
-complete re-save after their values have been restored.
+The pinned machine-pages 1.2.1 keeps in-place parameter edits packed in the
+existing version-4 sound record. Ordinary builds include this fix; no local
+companion replacement is needed. Control acceptance must compare the actual
+working saved record with the live sound, in addition to a fresh codec
+round-trip. Existing damaged records require a complete re-save after their
+values have been restored. Keep the exact dependency, image and readback
+hashes with persistence evidence.
 
 Host tests verify oscillator behavior and adapter isolation, not complete firmware execution.
 SDK lint and firmware packaging verify linking and patch constraints, not
 hardware operation. Opening the emulator is separate from host tests.
 Physical acceptance remains scoped to the retained device recordings. Complete
-performance budget, normal-package saved-sound compatibility, audio-rate FM
+performance budget, broader saved-sound compatibility, audio-rate FM
 quality and fidelity beyond the declared reference subset remain outstanding.
 The emulator task runs the restricted one-oscillator timing trial
 at 4×; it does not enable the full bank or modulation.
