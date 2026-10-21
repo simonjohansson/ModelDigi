@@ -91,7 +91,7 @@ run = 'out/render "$@"'
 description = "Check frozen signed waveform targets and the declared static alias grid"
 depends = ["build:renderer"]
 run = [
-  'uv run --python "$(mise which python)" --with numpy==2.5.4 python -m unittest discover -s tests -p "test_oscillator_measurements.py"',
+  'uv run --python "$(mise which python)" --with numpy==2.5.4 python -m unittest discover -s tests -p "test_*measurements.py"',
   'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_oscillators.py "$@"',
 ]
 
@@ -99,6 +99,11 @@ run = [
 description = "Check C output against retained recording hashes and static waveforms"
 depends = ["build:renderer"]
 run = 'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_oscillators.py --reference-dir "${MODELDIGI_REFERENCE_DIR:?Set MODELDIGI_REFERENCE_DIR to retained reference evidence}" "$@"'
+
+[tasks."analyse:device:oscillator"]
+description = "Analyse retained oscillator1 USB captures without operating the device"
+depends = ["build:renderer"]
+run = 'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_device_oscillator.py "$@"'
 
 [tasks."test:modulation"]
 description = "Check all frozen slow-modulation span and mean targets against the C engine"

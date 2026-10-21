@@ -184,6 +184,45 @@ directory and never replaces the committed one automatically. Missing or
 changed evidence fails; the portable tests remain usable without it. Complete-path bank RMS is not a core mixer target because
 the recordings do not isolate mixer transfer or match free-running phases.
 
+## Retained device recordings
+
+Analyse a retained oscillator 1 USB capture without connecting to hardware:
+
+```sh
+mise run analyse:device:oscillator /absolute/path/to/capture --out out/device-analysis
+```
+
+The capture directory contains stereo 48 kHz PCM24 audio and its capture log.
+Analysis rejects changed audio, missing frames, reported input overflows,
+failed restoration and invalid measurement windows. Native processed values
+must be decoded through the actual C control adapter during capture; Python
+measures audio and does not supply another sound engine. Retain the exact
+firmware, companion revisions, native settings and event/probe frame indices
+beside the recordings. Capture control and restoration are deliberately separate
+from this offline command.
+
+Waveform batches contain all six oscillator 1 shapes at each pitch and repeated
+saw windows in one continuous recording. One frequency and absolute sample
+positions preserve their shared phase origin. Signed ratios to the same
+harmonic of the saw cancel a stable linear output path; they do not identify
+absolute internal voltage, polarity or nonlinear mixer transfer. The command
+fails when these ratios exceed the existing frozen complex-ratio tolerance.
+Add `--reference-dir /absolute/path/to/reference` to verify every anchored
+manifest and retained recording hash before comparing to the frozen bundle.
+No independent waveform phase, polarity or gain adjustment is applied.
+
+Pitch, level, native LFO and note/mute continuity modes report measurements;
+they do not provide an overall device qualification flag. Separate accepted
+native notes from unsupported input routes, and distinguish nominal USB sample
+clock accuracy from an external pitch calibration. Level comparisons use
+fundamental amplitude relative to a static full-level take, with enough
+harmonics and carrier cycles to avoid finite-window leakage. Native LFO probes
+have a finite read aperture and USB input latency; retain those uncertainties
+instead of fitting a time offset. Carrier-frequency percentiles must be time
+weighted, since high pitches otherwise contribute more crossings. A waveform
+or LFO capture does not establish sequenced parameter-lock recording/playback,
+full-bank modulation, audio-rate alias performance or two-instance cost.
+
 ## Evidence boundaries
 
 For compiled Digitakt control checks, supply an already packaged image:
@@ -210,9 +249,10 @@ complete re-save after their values have been restored.
 Host tests verify oscillator behavior and adapter isolation, not complete firmware execution.
 SDK lint and firmware packaging verify linking and patch constraints, not
 hardware operation. Opening the emulator is separate from host tests.
-Physical-device qualification, performance budget, saved-sound compatibility,
-audio-rate FM quality and fidelity beyond the declared reference subset remain
-outstanding. The emulator task runs the restricted one-oscillator timing trial
+Physical acceptance remains scoped to the retained device recordings. Complete
+performance budget, normal-package saved-sound compatibility, audio-rate FM
+quality and fidelity beyond the declared reference subset remain outstanding.
+The emulator task runs the restricted one-oscillator timing trial
 at 4×; it does not enable the full bank or modulation.
 
 Stock firmware, built mods, custom firmware, emulator images and raw
