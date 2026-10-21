@@ -108,31 +108,6 @@ int32_t modeldigi_draw_range(void *bmp, int32_t x, int32_t y, int32_t value, int
     return draw(bmp, x, y, rows);
 }
 
-static int32_t dial(void *bmp, int32_t x, int32_t y, int value, int centred)
-{
-    static const uint8_t px[] = {3,2,1,1,2,3,4,6,8,10,12,13,14,15,15,14,13};
-    static const uint8_t py[] = {14,12,10,8,6,4,3,2,2,2,3,4,6,8,10,12,14};
-    int index = value <= 64 ? value * 8 / 64 : 8 + (value - 64) * 8 / 63;
-    uint32_t rows[17];
-    clear(rows);
-    for (int i = 1; i < 17; ++i) line(rows, px[i - 1], py[i - 1], px[i], py[i]);
-    if (centred) line(rows, 8, 0, 8, 3);
-    line(rows, 8, 9, px[index], py[index]);
-    return draw(bmp, x, y, rows);
-}
-
-int32_t modeldigi_draw_tune(void *bmp, int32_t x, int32_t y, int32_t value, int32_t flag)
-{
-    (void)flag;
-    return dial(bmp, x, y, position(value, 127), 1);
-}
-
-int32_t modeldigi_draw_depth(void *bmp, int32_t x, int32_t y, int32_t value, int32_t flag)
-{
-    (void)flag;
-    return dial(bmp, x, y, position(value, 127), 0);
-}
-
 int32_t modeldigi_draw_switch(void *bmp, int32_t x, int32_t y, int32_t value, int32_t flag)
 {
     uint32_t rows[17];

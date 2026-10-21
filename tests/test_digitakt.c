@@ -148,7 +148,9 @@ static void descriptor(void)
         assert((n->flags & (CM_RANGE | CM_DEFAULT)) == (CM_RANGE | CM_DEFAULT) && !(n->flags & CM_HIDDEN));
         assert(n->min == 0 && n->max == (selector ? 5 << 8 : 0x7f00) && n->def == def[k] << 8);
         assert(n->name && strlen(n->name) <= 4 && n->lname && n->look == 0x86);
-        assert((n->flags & CM_DRAW) && n->draw);
+        int stock_dial = k == MD_FRQ2 || k == MD_FRQ3 || k == MD_TUNE || k == MD_DPTH;
+        assert(!!(n->flags & CM_DRAW) == !stock_dial);
+        assert(!!n->draw == !stock_dial);
         assert(!(n->flags & CM_NOT_SAMPLE) == (k != MD_FRQ2));   /* knob D */
     }
 }
@@ -272,7 +274,8 @@ static void graphics(void)
     static const int32_t values[] = {INT32_MIN, -32768, 0, 128, 256, 512, 768, 1024, 1280,
                                      63 << 8, 64 << 8, 127 << 8, 32767, INT32_MAX};
     uint8_t images[6][17][17];
-    for (int k = 0; k < MD_VALUES; ++k)
+    for (int k = 0; k < MD_VALUES; ++k) {
+        if (!(knob(k)->flags & CM_DRAW)) continue;
         for (unsigned v = 0; v < sizeof values / sizeof *values; ++v) {
             memset(bitmap, 0xa5, sizeof bitmap);
             assert(knob(k)->draw(bitmap, 0, 0, values[v], 0));
@@ -284,6 +287,7 @@ static void graphics(void)
                 for (int x = 0; x < 17; ++x) { assert(bitmap[y][x] <= 1); lit += bitmap[y][x]; }
             assert(lit > 0 && lit < 17 * 17);
         }
+    }
     for (int i = 0; i < 6; ++i) {
         knob(MD_WAV1)->draw(bitmap, 0, 0, i << 8, 0);
         memcpy(images[i], bitmap, sizeof bitmap);
@@ -293,8 +297,6 @@ static void graphics(void)
     }
     knob(MD_CTRL)->draw(bitmap, 0, 0, 63 << 8, 0); memcpy(images[0], bitmap, sizeof bitmap);
     knob(MD_CTRL)->draw(bitmap, 0, 0, 64 << 8, 0); assert(memcmp(images[0], bitmap, sizeof bitmap));
-    knob(MD_TUNE)->draw(bitmap, 0, 0, 64 << 8, 0);
-    assert(bitmap[7][8] && bitmap[16][8]);
     assert(modeldigi_machine.icon);
 }
 

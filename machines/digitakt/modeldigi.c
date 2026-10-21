@@ -65,10 +65,10 @@ static int32_t frq3_text(char *buf, int32_t value, int32_t ctx, int32_t machine)
 }
 
 #define KNOB(label, long_name, max_, def_, flags_, fmt_, draw_) \
-    { .name = label, .lname = long_name, .look = LOOK_BR, .flags = CM_RANGE | CM_DEFAULT | CM_DRAW | (flags_), \
+    { .name = label, .lname = long_name, .look = LOOK_BR, .flags = CM_RANGE | CM_DEFAULT | (flags_), \
       .min = 0, .max = (max_) << 8, .def = (def_) << 8, .fmt = fmt_, .draw = draw_ }
 #define SELECTOR(label, long_name, def_, fmt_, draw_) \
-    KNOB(label, long_name, 5, def_, 0, fmt_, draw_)
+    KNOB(label, long_name, 5, def_, CM_DRAW, fmt_, draw_)
 
 static const struct cm_src_page pages[] = {
     { .title = "OSC 1/2", .parameter = { MD_RNG1, MD_WAV1, MD_RNG2, MD_FRQ2, MD_WAV2, MD_RNG3, MD_FRQ3, MD_WAV3 } },
@@ -84,21 +84,21 @@ static const struct cm_ui32 modeldigi_page = {
             SELECTOR("RNG1", "Osc 1 Range", 3, range_text, modeldigi_draw_range),
             SELECTOR("WAV1", "Osc 1 Wave", 2, wave12_text, modeldigi_draw_wave12),
             SELECTOR("RNG2", "Osc 2 Range", 3, range_text, modeldigi_draw_range),
-            KNOB("FRQ2", "Osc 2 Frequency", 127, 64, CM_NOT_SAMPLE, frq2_text, modeldigi_draw_tune),
+            KNOB("FRQ2", "Osc 2 Frequency", 127, 64, CM_NOT_SAMPLE, frq2_text, 0),
             SELECTOR("WAV2", "Osc 2 Wave", 2, wave12_text, modeldigi_draw_wave12),
             SELECTOR("RNG3", "Osc 3 Range", 3, range_text, modeldigi_draw_range),
-            KNOB("FRQ3", "Osc 3 Frequency", 127, 64, 0, frq3_text, modeldigi_draw_tune),
+            KNOB("FRQ3", "Osc 3 Frequency", 127, 64, 0, frq3_text, 0),
             SELECTOR("WAV3", "Osc 3 Wave", 2, wave3_text, modeldigi_draw_wave3),
         },
     },
     .extra = {
-        KNOB("TUNE", "Tune", 127, 64, 0, tune_text, modeldigi_draw_tune),
-        KNOB("CTRL", "Osc 3 Control", 127, 127, 0, switch_text, modeldigi_draw_switch),
-        KNOB("MOD", "Modulation", 127, 0, 0, switch_text, modeldigi_draw_switch),
-        KNOB("DPTH", "Mod Depth", 127, 0, 0, depth_text, modeldigi_draw_depth),
-        KNOB("LEV1", "Osc 1 Level", 127, 127, 0, 0, modeldigi_draw_level),
-        KNOB("LEV2", "Osc 2 Level", 127, 0, 0, 0, modeldigi_draw_level),
-        KNOB("LEV3", "Osc 3 Level", 127, 0, 0, 0, modeldigi_draw_level),
+        KNOB("TUNE", "Tune", 127, 64, 0, tune_text, 0),
+        KNOB("CTRL", "Osc 3 Control", 127, 127, CM_DRAW, switch_text, modeldigi_draw_switch),
+        KNOB("MOD", "Modulation", 127, 0, CM_DRAW, switch_text, modeldigi_draw_switch),
+        KNOB("DPTH", "Mod Depth", 127, 0, 0, depth_text, 0),
+        KNOB("LEV1", "Osc 1 Level", 127, 127, CM_DRAW, 0, modeldigi_draw_level),
+        KNOB("LEV2", "Osc 2 Level", 127, 0, CM_DRAW, 0, modeldigi_draw_level),
+        KNOB("LEV3", "Osc 3 Level", 127, 0, CM_DRAW, 0, modeldigi_draw_level),
     },
     .page_count = 2,
     .pages = pages,

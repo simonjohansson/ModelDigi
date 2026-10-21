@@ -6,9 +6,7 @@
 int32_t modeldigi_draw_range(void *, int32_t, int32_t, int32_t, int32_t);
 int32_t modeldigi_draw_wave12(void *, int32_t, int32_t, int32_t, int32_t);
 int32_t modeldigi_draw_wave3(void *, int32_t, int32_t, int32_t, int32_t);
-int32_t modeldigi_draw_tune(void *, int32_t, int32_t, int32_t, int32_t);
 int32_t modeldigi_draw_switch(void *, int32_t, int32_t, int32_t, int32_t);
-int32_t modeldigi_draw_depth(void *, int32_t, int32_t, int32_t, int32_t);
 int32_t modeldigi_draw_level(void *, int32_t, int32_t, int32_t, int32_t);
 extern const struct modeldigi_icon {
     const void *vt;

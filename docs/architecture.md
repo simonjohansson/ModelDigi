@@ -67,9 +67,10 @@ Approved stored meanings:
 - Cold defaults: one saw at 8' at full level, oscillators 2 and 3 silent,
   modulation off, CONTROL on, everything centred.
 
-Every value retains SLICE's BR whole-unit encoder stepping. UI-only graphics
-show waveform shapes, range footage, centred tuning dials, switches, depth
-and level bars. Oscillator 3's second waveform picture is reverse saw.
+Every value retains SLICE's BR whole-unit encoder stepping. Frequency, tune
+and depth reuse its stock round visualization. UI-only graphics show waveform
+shapes, range footage, switches and level bars. Oscillator 3's second
+waveform picture is reverse saw.
 These pictures do not change stored values or the audio path.
 
 Decoding runs once per 32-sample block from values after locks and LFOs.
