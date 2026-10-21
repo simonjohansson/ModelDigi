@@ -8,7 +8,8 @@ int32_t cost_output[32];
 
 #define HZ(x) ((uint32_t)((x) * 65536.0))
 
-/* 0 one saw; 1 three sources; 2 slow modulation; 3 audio-rate feedback FM; 4 high narrow pulses. */
+/* 0 one saw; 1 three sources; 2 slow modulation; 3 audio-rate feedback FM; 4 high narrow pulses;
+ * 5 saw feedback FM. */
 void cost_setup(int scenario)
 {
     modeldigi_osc_params p = {0};
@@ -27,9 +28,9 @@ void cost_setup(int scenario)
         p.modulation_enabled = true;
         p.modulation_depth_q16_16 = 32768;
     }
-    if (scenario == 3) {
+    if (scenario == 3 || scenario == 5) {
         p.frequency_q16_16[2] = HZ(200);
-        p.waveform[2] = 4;
+        p.waveform[2] = scenario == 3 ? 4 : 3;
         p.modulation_enabled = p.osc3_control = true;
         p.modulation_depth_q16_16 = 65536;
     }

@@ -81,7 +81,7 @@ reserve in its worst tested case.
 
 `mise run cost [factor ...]` estimates the ColdFire cost of one bank per
 32-frame block. It compiles the actual engine with the SDK's Digitakt flags,
-links it with a small driver at a fixed address, and times five fixed
+links it with a small driver at a fixed address, and times six fixed
 scenarios under digiemu's cycle model, which uses the processor manual's
 timing tables and assumes zero-wait memory. It also reports any 64-bit
 runtime helper the engine would import. Stock 1.53's render is estimated at
@@ -91,7 +91,7 @@ of two. These are estimates; the firmware check's timing stage and the device
 remain the authority. The task needs the cross-toolchain and a bootstrapped
 digiemu.
 
-`mise run cost:profile --blocks 24` profiles the same five scenarios at 4×,
+`mise run cost:profile --blocks 24` profiles the same six scenarios at 4×,
 or at the rate given by `--factor`, separating setup, the first block, warm-up
 and warm rendering. It attributes
 cycles to basic blocks and source instructions, including inlined helpers.
