@@ -12,8 +12,18 @@ volatile uint32_t fw_voice_start;
 volatile uint32_t fw_active_track;
 uint8_t *volatile fw_kit;
 const char cm_ui_v32[] = "UI32";
+const char fw_bitmap_vt[] = "Bitmap";
+static uint8_t bitmap[17][17];
+void fw_fillrect(void *bmp, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t colour)
+{
+    assert(bmp == bitmap && x0 >= 1 && x1 <= 17 && y0 >= 0 && y1 <= 16);
+    assert(x1 >= x0 && y1 >= y0 && (colour == 0 || colour == 1));
+    for (int y = y0; y <= y1; ++y)
+        for (int x = x0; x <= x1; ++x) bitmap[y][x - 1] = (uint8_t)colour;
+}
 extern const struct cm_machine modeldigi_machine;
 extern void modeldigi_digitakt_render(int32_t *blocks);
+extern int32_t modeldigi_midi_cc_parameter(int32_t track, int32_t machine, int32_t cc);
 static int16_t live_values[8][MD_VALUES];
 
 int32_t cm_src_value(int32_t track, int32_t parameter)
@@ -137,8 +147,10 @@ static void descriptor(void)
         int selector = k < 8 && k != MD_FRQ2 && k != MD_FRQ3;
         assert((n->flags & (CM_RANGE | CM_DEFAULT)) == (CM_RANGE | CM_DEFAULT) && !(n->flags & CM_HIDDEN));
         assert(n->min == 0 && n->max == (selector ? 5 << 8 : 0x7f00) && n->def == def[k] << 8);
-        assert(n->name && strlen(n->name) <= 4 && n->lname && n->look == 0x86);
-        assert(!n->gfx == !selector && (!selector || n->gfx(5 << 8) == 127 << 8));
+        assert(n->name && strlen(n->name) <= 4 && n->lname && n->look == (selector || k == MD_FRQ2 || k == MD_FRQ3 ? 0x84 : 0x86));
+        int stock_dial = k == MD_FRQ2 || k == MD_FRQ3 || k == MD_TUNE || k == MD_DPTH;
+        assert(!!(n->flags & CM_DRAW) == !stock_dial);
+        assert(!!n->draw == !stock_dial);
         assert(!(n->flags & CM_NOT_SAMPLE) == (k != MD_FRQ2));   /* knob D */
     }
 }
@@ -257,8 +269,106 @@ static void text(void)
     fw_kit = 0;
 }
 
+static void graphics(void)
+{
+    static const int32_t values[] = {INT32_MIN, -32768, 0, 128, 256, 512, 768, 1024, 1280,
+                                     63 << 8, 64 << 8, 127 << 8, 32767, INT32_MAX};
+    uint8_t images[6][17][17];
+    for (int k = 0; k < MD_VALUES; ++k) {
+        if (!(knob(k)->flags & CM_DRAW)) continue;
+        for (unsigned v = 0; v < sizeof values / sizeof *values; ++v) {
+            memset(bitmap, 0xa5, sizeof bitmap);
+            assert(knob(k)->draw(bitmap, 0, 0, values[v], 0));
+            uint8_t before[17][17]; memcpy(before, bitmap, sizeof bitmap);
+            assert(knob(k)->draw(bitmap, 0, 0, values[v], 1));
+            assert(!memcmp(before, bitmap, sizeof bitmap));
+            int lit = 0;
+            for (int y = 0; y < 17; ++y)
+                for (int x = 0; x < 17; ++x) { assert(bitmap[y][x] <= 1); lit += bitmap[y][x]; }
+            assert(lit > 0 && lit < 17 * 17);
+        }
+    }
+    for (int i = 0; i < 6; ++i) {
+        knob(MD_WAV1)->draw(bitmap, 0, 0, i << 8, 0);
+        memcpy(images[i], bitmap, sizeof bitmap);
+        for (int j = 0; j < i; ++j) assert(memcmp(images[j], bitmap, sizeof bitmap));
+        knob(MD_WAV3)->draw(bitmap, 0, 0, i << 8, 0);
+        assert((memcmp(images[i], bitmap, sizeof bitmap) != 0) == (i == 1));
+    }
+    /* Native bitmap y runs bottom-up; match the panel's upward-pointing glyphs. */
+    for (int i = 0; i < 2; ++i)
+        assert(images[i][13][8] && !images[i][3][8]);
+    assert(images[2][3][1] && !images[2][13][1]);
+    knob(MD_WAV3)->draw(bitmap, 0, 0, 1 << 8, 0);
+    assert(bitmap[13][1] && !bitmap[3][1]);
+    knob(MD_CTRL)->draw(bitmap, 0, 0, 63 << 8, 0); memcpy(images[0], bitmap, sizeof bitmap);
+    knob(MD_CTRL)->draw(bitmap, 0, 0, 64 << 8, 0); assert(memcmp(images[0], bitmap, sizeof bitmap));
+    assert(modeldigi_machine.icon);
+}
+
+static void midi_lookup(void)
+{
+    for (int track = -1; track <= 16; ++track)
+        for (int cc = 0; cc < 128; ++cc) {
+            int expected = track >= 0 && track < 8 && cc >= 24 && cc <= 30 ? 164 + cc - 24 : 0;
+            assert(modeldigi_midi_cc_parameter(track, 42, cc) == expected);
+            assert(modeldigi_midi_cc_parameter(track, 3, cc) == 0);
+        }
+}
+
+static void coarse_motion(void)
+{
+    for (int wide = 0; wide <= 1; wide++) {
+        int remainder = 0, steps = 0, last = 0;
+        for (int detent = 1; detent <= 128; ++detent) {
+            int n = modeldigi_frq_coarse(&remainder, 4, wide);
+            assert(n == 0 || n == 1);
+            if (n) {
+                int gap = detent-last;
+                assert(wide ? gap == 1 || gap == 2 : gap == 9 || gap == 10);
+                last = detent;
+            }
+            steps += n;
+        }
+        assert(steps == (wide ? 70 : 14) && remainder == 0);
+        assert(modeldigi_frq_coarse(&remainder, 512, wide) == steps && remainder == 0);
+    }
+}
+
+static void tuning_steps(void)
+{
+    for (int wide = 0; wide <= 1; wide++) {
+        int limit = wide ? 35 : 7;
+        int32_t value = 64 << 8;
+        for (int n = 1; n <= limit; n++) {
+            int32_t next = modeldigi_frq_step(value, 1, wide);
+            assert(next > value && modeldigi_frq_anchor(next, wide));
+            assert(abs((wide ? 5 : 1) * modeldigi_frq_cents(next) - 10000 * n) <= 15);
+            assert(modeldigi_frq_step(next - 1, 1, wide) == next);
+            if (next < (127 << 8)) assert(modeldigi_frq_step(next + 1, -1, wide) == next);
+            value = next;
+        }
+        assert(modeldigi_frq_step(value, 1, wide) == value);
+        for (int n = limit - 1; n >= -limit; n--) {
+            value = modeldigi_frq_step(value, -1, wide);
+            assert(abs((wide ? 5 : 1) * modeldigi_frq_cents(value) - 10000 * n) <= 15);
+        }
+        assert(value == (1 << 8));
+        assert(modeldigi_frq_step(0, 1, wide) == modeldigi_frq_step(value, 1, wide));
+        assert(modeldigi_frq_step(value, -1, wide) == value);
+        for (int v = 256; v < 127 * 256; v++) {
+            assert(modeldigi_frq_step(v, 1, wide) > v);
+            assert(modeldigi_frq_step(v, -1, wide) < v || v == 256);
+        }
+    }
+}
+
 int main(void)
 {
+    coarse_motion();
+    tuning_steps();
+    midi_lookup();
+    graphics();
     isolation();
     render_lifetime();
     descriptor();

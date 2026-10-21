@@ -19,7 +19,7 @@ CFLAGS = ['-mcpu=54455', '-O2', '-ffreestanding', '-fno-builtin', '-nostdlib', '
 SCENARIOS = ['one saw', 'three sources', 'slow modulation', 'audio-rate feedback FM', 'high narrow pulses',
              'saw feedback FM']
 PERIOD = 166_700        # core cycles per 32-frame block at 250 MHz
-STOCK = 100_000         # stock 1.53 render estimate (digiemu docs/FIRMWARE-CHECK.md)
+STOCK = 100_000         # historical stock render estimate (digiemu docs/FIRMWARE-CHECK.md)
 BUDGET = int(PERIOD * 0.9) - STOCK   # what a 10% render margin leaves for ModelDigi
 STACK, STOP = 0x400ff000, 0x400ff800
 HELPERS = ('__muldi3', '__divdi3', '__udivdi3', '__moddi3', '__umoddi3', '__ashldi3', '__ashrdi3', '__lshrdi3')

@@ -28,17 +28,17 @@ description = "Build device dependencies"
 depends = ["build:deps:digitakt", "build:deps:digitone"]
 
 [tasks."build:deps:digitakt"]
-description = "Build Core and machine-pages for each local Digitakt OS"
+description = "Build Core and machine-pages for Digitakt OS1.54"
 run = '''
 set -eu
-for stock in firmware/Digitakt_OS*.syx; do
-  [ -f "$stock" ] || { echo "Add Digitakt_OS1.53.syx or Digitakt_OS1.54.syx to firmware/" >&2; exit 1; }
-  os=${stock##*_OS}; os=${os%.syx}
-  mkdir -p "out/os$os"
-  rm -f "out/os$os/"*.elemod
-  python -m elekloader.sdk.build vendor/elekloader/mods/core --stock "$stock" --out "out/os$os"
-  python -m elekloader.sdk.build vendor/elekloader/mods/machine-pages --stock "$stock" --out "out/os$os"
-done
+stock="$ELEKLOADER_STOCK"
+case "$stock" in *_OS1.54.syx) ;; *) echo "Only Digitakt OS1.54 is supported" >&2; exit 1 ;; esac
+[ -f "$stock" ] || { echo "Add Digitakt_OS1.54.syx to firmware/" >&2; exit 1; }
+dir=out/os1.54
+mkdir -p "$dir"
+rm -f "$dir/"*.elemod
+python -m elekloader.sdk.build vendor/elekloader/mods/core --stock "$stock" --out "$dir"
+python -m elekloader.sdk.build vendor/elekloader/mods/machine-pages --stock "$stock" --out "$dir"
 '''
 
 [tasks.build]
@@ -46,19 +46,17 @@ description = "Build ModelDigi device mods"
 depends = ["build:digitakt", "build:digitone"]
 
 [tasks."build:digitakt"]
-description = "Build and lint the one-oscillator Digitakt trial for each local OS"
+description = "Build and lint the one-oscillator Digitakt OS1.54 trial"
 depends = ["build:deps:digitakt"]
 run = '''
 set -eu
-for stock in firmware/Digitakt_OS*.syx; do
-  os=${stock##*_OS}; os=${os%.syx}
-  dir=out/os$os
-  python -m elekloader.sdk.build machines/digitakt --stock "$stock" --out "$dir"
-  for mod in "$dir/"*.elemod; do
-    case "$mod" in *-os$os.elemod) ;; *) mv "$mod" "${mod%.elemod}-os$os.elemod" ;; esac
-  done
-  python -m elekloader.lint "$dir/"modeldigi-*.elemod --stock "$stock" --with "$dir/"core-*.elemod --with "$dir/"machine-pages-*.elemod
+stock="$ELEKLOADER_STOCK"
+dir=out/os1.54
+python -m elekloader.sdk.build machines/digitakt --stock "$stock" --out "$dir"
+for mod in "$dir/"*.elemod; do
+  case "$mod" in *-os1.54.elemod) ;; *) mv "$mod" "${mod%.elemod}-os1.54.elemod" ;; esac
 done
+python -m elekloader.lint "$dir/"modeldigi-*.elemod --stock "$stock" --with "$dir/"core-*.elemod --with "$dir/"machine-pages-*.elemod
 '''
 
 [tasks.test]
@@ -67,7 +65,7 @@ run = [
   "mkdir -p out",
   "cc -std=c99 -O2 -Wall -Wextra -Werror dsp/dsp.c tests/test_dsp.c -o out/test_dsp",
   "out/test_dsp",
-  "cc -std=c99 -O2 -Wall -Wextra -Werror -Ivendor/elekloader/elekloader/sdk/include dsp/oscillator.c machines/digitakt/modeldigi.c machines/digitakt/controls.c tests/test_digitakt.c -lm -o out/test_digitakt",
+  "cc -std=c99 -O2 -Wall -Wextra -Werror -Ivendor/elekloader/elekloader/sdk/include dsp/oscillator.c machines/digitakt/modeldigi.c machines/digitakt/controls.c machines/digitakt/graphics.c tests/test_digitakt.c -lm -o out/test_digitakt",
   "out/test_digitakt",
   "cc -std=c99 -O2 -Wall -Wextra -Werror dsp/oscillator.c tests/test_oscillator.c -o out/test_oscillator",
   "out/test_oscillator",
@@ -79,6 +77,10 @@ run = [
   "mkdir -p out",
   "cc -std=c99 -O2 -Wall -Wextra -Werror dsp/oscillator.c tools/render.c -lm -o out/render",
 ]
+
+[tasks."test:firmware:controls"]
+description = "Exercise compiled Digitakt MIDI and graphics with explicit OS1.54 firmware and output paths"
+run = 'uv run --python "$(mise which python)" --project vendor/digiemu python tests/test_digitakt_controls.py "$@"'
 
 [tasks.render]
 description = "Render C oscillator audio: OUT.wav [seconds=3 freq1=440 wave1=3 ...]"
@@ -134,8 +136,7 @@ description = "Package the selected stock OS with the one-oscillator ModelDigi t
 depends = ["build:digitakt"]
 run = '''
 set -eu
-os=${ELEKLOADER_STOCK##*_OS}; os=${os%.syx}
-dir=out/os$os
+dir=out/os1.54
 python -m elekloader.patch --stock "$ELEKLOADER_STOCK" --mod "$dir/"core-*.elemod --mod "$dir/"machine-pages-*.elemod --mod "$dir/"modeldigi-*.elemod --out out/Digitakt_ModelDigi.syx --version "$FW_VERSION"
 '''
 

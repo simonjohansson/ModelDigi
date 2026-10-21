@@ -31,12 +31,12 @@ The project follows OB-1's separation of sound engine and device integration:
 ## Build steps
 
 Place stock Digitakt mk1 OS files in the ignored `firmware/` directory.
-Use the names `Digitakt_OS1.53.syx` and/or `Digitakt_OS1.54.syx`. Builds use
+Only OS1.54 is supported. Use the name `Digitakt_OS1.54.syx`. Builds use
 the SDK's hash verification and reject unknown firmware.
 
 | Command | Result |
 |---|---|
-| `mise run build` | Builds Core, machine-pages and ModelDigi for every local Digitakt OS; lints the machine with its dependencies. Artifacts go into `out/os<OS>/`. |
+| `mise run build` | Builds Core, machine-pages and ModelDigi for Digitakt OS1.54; lints the machine with its dependencies. Artifacts go into `out/os<OS>/`. |
 | `mise run firmware` | Builds and patches the selected stock OS into `out/Digitakt_ModelDigi.syx`. No device transfer. |
 | `mise run emu` | Builds firmware, prepares it in digiemu and opens its panel. Emulator data stays in `.digiemu/`. |
 | `mise run test` | Checks C oscillator state, splitting, bounds and routing, plus Digitakt control decoding, value text, page layout, actual single-oscillator output, state lifetime and track isolation. |
@@ -102,7 +102,7 @@ reserve in its worst tested case.
 links it with a small driver at a fixed address, and times six fixed
 scenarios under digiemu's cycle model, which uses the processor manual's
 timing tables and assumes zero-wait memory. It also reports any 64-bit
-runtime helper the engine would import. Stock 1.53's render is estimated at
+runtime helper the engine would import. The historical stock-render estimate is
 about 100,000 of the 166,700 cycles in each period at 250 MHz, so a 10%
 render margin leaves about 50,000 cycles for one instance or 25,000 for each
 of two. These are estimates; the firmware check's timing stage and the device
@@ -185,6 +185,27 @@ changed evidence fails; the portable tests remain usable without it. Complete-pa
 the recordings do not isolate mixer transfer or match free-running phases.
 
 ## Evidence boundaries
+
+For compiled Digitakt control checks, supply an already packaged image:
+
+```sh
+mise run test:firmware:controls --firmware out/Digitakt_ModelDigi.syx --os 1.54 --out out/control-check
+```
+
+The output directory must be new. This check boots native firmware, exercises
+CC 16–30 through the emulated DIN receiver, checks stored and live values,
+verifies that frequency edits reach the working saved record, tests unrelated
+lookup fallbacks and captures both pages across selector and
+switch positions. It preserves the emulator's MIDI semaphore guard and paces
+input to its UART model; it does not establish burst throughput or USB MIDI
+behavior. The check neither builds firmware nor transfers it to a device.
+
+The pinned machine-pages 1.2 still has a known in-place saved-record update
+defect. Persistence acceptance requires the separately tested 1.2.1 fix;
+successful control checks alone do not qualify the pinned package for saving
+sounds. Keep the exact companion source and image hashes with local evidence
+until the dependency update is delivered. Existing damaged records require a
+complete re-save after their values have been restored.
 
 Host tests verify oscillator behavior and adapter isolation, not complete firmware execution.
 SDK lint and firmware packaging verify linking and patch constraints, not

@@ -10,7 +10,7 @@ sequencer and shape its sound with the track's existing filter, amp and effects.
 
 ## What works today
 
-- Digitakt mk1 builds target **OS 1.53 and 1.54**. Digitone support is planned.
+- Digitakt mk1 builds target **OS 1.54 only**. Digitone support is planned.
 - The current device trial plays **oscillator 1 only**, with range, waveform,
   tuning, level and sequenced notes.
 - Oscillators 2 and 3 are silent, and oscillator modulation is disabled for
@@ -34,6 +34,10 @@ its two pages:
 
 For the current trial, use **RNG1**, **WAV1**, **TUNE** and **LEV1** to shape
 oscillator 1. Other tracks keep their own sounds.
+
+MIDI CC 16–23 control OSC; CC 24–30 control MIX in page order. Selectors use
+0–5, and other values use 0–127. See Development for the companion-version
+requirement before testing saved sounds.
 
 ## CPU use
 

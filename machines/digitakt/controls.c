@@ -45,12 +45,63 @@ static int selector(int32_t v)
 }
 
 /* Signed cents x 100 of a FRQ position; fractional positions interpolate. */
-static int32_t frq_cents(int32_t v)
+int32_t modeldigi_frq_cents(int32_t v)
 {
     int32_t x = clamp(v, 0, TOP) - CENTER, a = x < 0 ? -x : x;
     int32_t i = a >> 8, c = i >= 63 ? frq_cx100[63]
         : frq_cx100[i] + (frq_cx100[i + 1] - frq_cx100[i]) * (a & 255) / 256;
     return x < 0 ? -c : c;
+}
+
+/* Nearest stored value to a whole semitone, using the existing tuning curve. */
+static int32_t semitone_value(int semitone, int wide)
+{
+    if (!semitone) return CENTER;
+    if (!wide || semitone % 5 == 0) {
+        int n = wide ? semitone / 5 : semitone;
+        int offset = (21 + ((n < 0 ? -n : n) - 1) * 7) << 8;
+        return CENTER + (n < 0 ? -offset : offset);
+    }
+    int32_t lo = 1 << 8, hi = TOP, target = semitone * 10000;
+    int factor = wide ? 5 : 1;
+    while (lo < hi) {
+        int32_t mid = (lo + hi) / 2;
+        if (factor * modeldigi_frq_cents(mid) < target) lo = mid + 1;
+        else hi = mid;
+    }
+    if (lo > (1 << 8)) {
+        int32_t above = factor * modeldigi_frq_cents(lo) - target;
+        int32_t below = target - factor * modeldigi_frq_cents(lo - 1);
+        if (below < above) --lo;
+    }
+    return lo;
+}
+
+int32_t modeldigi_frq_step(int32_t value, int direction, int wide)
+{
+    value = clamp(value, 1 << 8, TOP);
+    int32_t cents = (wide ? 5 : 1) * modeldigi_frq_cents(value);
+    int nearest = (cents + (cents < 0 ? -5000 : 5000)) / 10000;
+    int32_t anchor = semitone_value(nearest, wide);
+    if ((direction > 0 && value >= anchor) || (direction < 0 && value <= anchor))
+        nearest += direction;
+    int limit = wide ? 35 : 7;
+    return semitone_value(clamp(nearest, -limit, limit), wide);
+}
+
+int modeldigi_frq_coarse(int *remainder, int counts, int wide)
+{
+    *remainder += counts * (wide ? 70 : 14);
+    int steps = *remainder / 512;
+    *remainder %= 512;
+    return steps;
+}
+
+int modeldigi_frq_anchor(int32_t value, int wide)
+{
+    int32_t cents = (wide ? 5 : 1) * modeldigi_frq_cents(value);
+    int nearest = (cents + (cents < 0 ? -5000 : 5000)) / 10000;
+    return value == semitone_value(nearest, wide);
 }
 
 static int32_t tune_cents(int32_t v)
@@ -112,12 +163,12 @@ void modeldigi_decode(const int16_t values[MD_VALUES], int32_t note, modeldigi_o
         p->waveform[v] = v < 2 ? wave12[wave] : wave3[wave];
         p->level[v] = level(values[MD_LEV1 + v]);
         if (v == 1)
-            oct += octaves(frq_cents(values[MD_FRQ2]));
+            oct += octaves(modeldigi_frq_cents(values[MD_FRQ2]));
         if (v == 2 && control)
-            oct += octaves(frq_cents(values[MD_FRQ3]));
+            oct += octaves(modeldigi_frq_cents(values[MD_FRQ3]));
         if (v == 2 && !control) {
             /* CONTROL off: no note, a five-times wider sweep, C2 for the audio ranges. */
-            int32_t wide = 5 * frq_cents(values[MD_FRQ3]);
+            int32_t wide = 5 * modeldigi_frq_cents(values[MD_FRQ3]);
             if (range == 0) {
                 base = ONE_HZ;
                 oct = lo_free_log2(wide) + tune;
@@ -191,8 +242,8 @@ int modeldigi_text(int kind, int32_t v, int popup, char *buf)
     case MD_TEXT_RANGE: put_text(buf, range[selector(v)]); break;
     case MD_TEXT_WAVE12: put_text(buf, (popup ? wave12_long : wave12_short)[selector(v)]); break;
     case MD_TEXT_WAVE3: put_text(buf, (popup ? wave3_long : wave3_short)[selector(v)]); break;
-    case MD_TEXT_FRQ: cents_text(buf, frq_cents(v), popup); break;
-    case MD_TEXT_FRQ_WIDE: cents_text(buf, 5 * frq_cents(v), popup); break;
+    case MD_TEXT_FRQ: cents_text(buf, modeldigi_frq_cents(v), popup); break;
+    case MD_TEXT_FRQ_WIDE: cents_text(buf, 5 * modeldigi_frq_cents(v), popup); break;
     case MD_TEXT_TUNE: cents_text(buf, tune_cents(v), popup); break;
     case MD_TEXT_SWITCH: put_text(buf, v >= CENTER ? "ON" : "OFF"); break;
     default: {

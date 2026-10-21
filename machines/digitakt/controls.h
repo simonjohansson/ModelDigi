@@ -22,4 +22,10 @@ void modeldigi_decode(const int16_t values[MD_VALUES], int32_t note, modeldigi_o
 /* Writes a value's text (popup: about 7 characters beside the long name, else about 5); returns 1. */
 int modeldigi_text(int kind, int32_t value, int popup, char *buf);
 
+/* Private device tuning helpers; values remain in the existing 8.8 format. */
+int32_t modeldigi_frq_cents(int32_t value);
+int32_t modeldigi_frq_step(int32_t value, int direction, int wide);
+int modeldigi_frq_coarse(int *remainder, int counts, int wide);
+int modeldigi_frq_anchor(int32_t value, int wide);
+
 #endif

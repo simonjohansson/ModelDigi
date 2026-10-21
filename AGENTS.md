@@ -6,7 +6,7 @@ Keep code comments and README files free of issue references. Commit messages ma
 
 ## Project orientation
 
-ModelDigi is a future Minimoog Model D clone. Its shared C oscillator bank runs in a host renderer; the Digitakt mk1 currently runs a one-audible-oscillator timing trial at the production 4× rate with modulation disabled. Digitone is a scaffold whose placeholder tasks succeed without producing a working port. Do not add other synthesis sections, controls or extra workflows unless requested.
+ModelDigi is a future Minimoog Model D clone. Its shared C oscillator bank runs in a host renderer; the Digitakt mk1 currently runs a one-audible-oscillator timing trial at the production 4× rate with modulation disabled. Digitakt firmware targets OS1.54 only. Digitone is a scaffold whose placeholder tasks succeed without producing a working port. Do not add other synthesis sections, controls or extra workflows unless requested.
 
 Read [Architecture](docs/architecture.md) for integration boundaries and [Development and verification](docs/development.md) for setup, commands and checks. Before implementing Model D behavior, establish manufacturer sources and document numeric constraints and confidence separately from measurements.
 
