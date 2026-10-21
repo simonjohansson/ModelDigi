@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
-/* Naive oscillator bank: three phase accumulators at 48 kHz, plain waveforms, summed.
- * No oversampling or alias suppression. Uses 32-bit arithmetic only: a mod links no
- * libgcc 64-bit helpers.
+/* Oscillator bank: three phase accumulators at 48 kHz, summed. Each step and corner is smoothed by
+ * a triangular kernel one sample wide on each side (2-point PolyBLEP and PolyBLAMP), so the output
+ * is the ideal waveform with a sinc^2 response, sampled; no oversampling. Uses 32-bit arithmetic
+ * only: a mod links no libgcc 64-bit helpers.
  *
  * Shapes follow the frozen reference conventions: the saw falls from its peak and resets at
  * phase 0, the triangle peaks at phase 0, pulses are centred on phase 0 with zero mean and a
@@ -50,6 +51,37 @@ void modeldigi_osc_init(modeldigi_osc_state *state)
         state->phase[v] = 0;
 }
 
+
+/* Kernel residues in Q15 at distance x (Q15, 0..1 sample) from an event: a unit step leaves
+ * (1 - x)^2 / 2 (positive before the event, negative after), a unit slope change (1 - x)^3 / 6. */
+static int32_t step_residue(int32_t x)
+{
+    int32_t a = 32768 - x;
+    return (a * a) >> 16;
+}
+
+static int32_t corner_residue(int32_t x)
+{
+    int32_t a = 32768 - x;
+    return (((a * a) >> 15) * a >> 15) / 6;
+}
+
+/* Corrections for an event at phase e on the samples either side of it: a step of step_q14 * 2^14
+ * output units and a slope change of bend output units a sample. x is the distance from the event
+ * in samples, Q15: (e - p) / inc before it, (p - e) / inc after. */
+#define EVENT(e, step_q14, bend)                                                          \
+    do {                                                                                      \
+        uint32_t ahead = (e) - p - 1, behind = p - (e);                                       \
+        if (ahead < inc) {                                                                    \
+            int32_t x = (int32_t)(((ahead >> shift) << 15) / (inc >> shift));                 \
+            y += ((step_q14) * step_residue(x) >> 1) + (((bend) >> 11) * corner_residue(x) >> 4); \
+        }                                                                                     \
+        if (behind < inc) {                                                                   \
+            int32_t x = (int32_t)(((behind >> shift) << 15) / (inc >> shift));                \
+            y += (((bend) >> 11) * corner_residue(x) >> 4) - ((step_q14) * step_residue(x) >> 1); \
+        }                                                                                     \
+    } while (0)
+
 void modeldigi_osc_render(modeldigi_osc_state *state, const modeldigi_osc_params *params,
                           int32_t *output, size_t frames)
 {
@@ -57,22 +89,38 @@ void modeldigi_osc_render(modeldigi_osc_state *state, const modeldigi_osc_params
         output[i] = 0;
     for (unsigned v = 0; v < 3; ++v) {
         uint32_t p = state->phase[v], inc = increment(params->frequency_q16_16[v]);
+        unsigned shift = 0;   /* inc >> shift fits 15 bits, for the event fractions */
+        while (inc >> shift >= 32768)
+            ++shift;
         unsigned shape = params->waveform[v] < 7 ? params->waveform[v] : 0;
         if (shape < 4) {
             int32_t tri = scaled(lines[shape].tri, params->level[v]), saw = scaled(lines[shape].saw, params->level[v]);
+            /* The reset steps the saw part by 2 (Q16 units 2^17, so 2^14 output units per coefficient
+             * unit); the triangle bends by 8 a cycle, inc >> 13 Q16 units a sample, at 0 and at half,
+             * which is (inc >> 16) * tri output units. */
+            int32_t bend = (int32_t)(inc >> 16) * tri;
             for (size_t i = 0; i < frames; ++i, p += inc) {
                 /* Q16 units: the saw falls from +1 to -1, the triangle runs +1, -1, +1. */
                 uint32_t fold = p < HALF ? p : ~p;
                 int32_t s = 65536 - (int32_t)(((p >> 14) + 1) >> 1);
                 int32_t t = 65536 - (int32_t)(((fold >> 13) + 1) >> 1);
-                output[i] += (t * tri + s * saw) >> 3;
+                int32_t y = (t * tri + s * saw) >> 3;
+                EVENT(0u, saw, -bend);
+                if (tri)
+                    EVENT(HALF, 0, bend);
+                output[i] += y;
             }
         } else {
             int32_t high = scaled(pulses[shape - 4].high, params->level[v]) << 13;
             int32_t low = -(int32_t)mulhi((uint32_t)high, pulses[shape - 4].ratio);   /* zero mean */
+            int32_t step = (high - low) >> 14;
             uint32_t half = pulses[shape - 4].half;
-            for (size_t i = 0; i < frames; ++i, p += inc)
-                output[i] += p + half < 2 * half ? high : low;
+            for (size_t i = 0; i < frames; ++i, p += inc) {
+                int32_t y = p + half < 2 * half ? high : low;
+                EVENT(0u - half, step, 0);
+                EVENT(half, -step, 0);
+                output[i] += y;
+            }
         }
         state->phase[v] = p;
     }
