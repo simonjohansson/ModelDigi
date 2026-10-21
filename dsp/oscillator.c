@@ -154,6 +154,22 @@ static int32_t smulhi(int32_t a, uint32_t b)
     return a < 0 ? -m : m;
 }
 
+/* One sample of a line shape or a pulse at phase p, with its edge corrections. */
+static inline __attribute__((always_inline)) int32_t line_sample(const voice *c, uint32_t p, uint32_t inc, uint32_t last)
+{
+    int32_t y = (tri_unit(p) * c->tri + saw_unit(p) * c->saw) >> 3;
+    y += event(0u, p, inc, last, c->saw, -c->tri);
+    if (c->tri)
+        y += event(HALF, p, inc, last, 0, c->tri);
+    return y;
+}
+
+static inline __attribute__((always_inline)) int32_t pulse_sample(const voice *c, uint32_t p, uint32_t inc, uint32_t last)
+{
+    return (pulse_high(p, c->half) ? c->high : c->low)
+        + event(0u - c->half, p, inc, last, c->step, 0) + event(c->half, p, inc, last, -c->step, 0);
+}
+
 /* One voice over n samples into out, from its phase and previous step. Its step is modulated by
  * octaves[i] where octaves is given and nonzero; source, when given, receives oscillator 3's own
  * modulation from each sample's phase before the step (CONTROL feeding it when control is set). */
@@ -161,6 +177,18 @@ static void run(const voice *c, uint32_t *phase, uint32_t *previous, uint32_t st
                 const voice *source, uint32_t depth, int control, int32_t *out, unsigned n)
 {
     uint32_t p = *phase, last = *previous;
+    if (!octaves) {
+        /* Unmodulated: a fixed step, so a loop per shape class. */
+        if (c->shape < 4)
+            for (unsigned i = 0; i < n; ++i, p += step, last = step)
+                out[i] += line_sample(c, p, step, last);
+        else
+            for (unsigned i = 0; i < n; ++i, p += step, last = step)
+                out[i] += pulse_sample(c, p, step, last);
+        *phase = p;
+        *previous = last;
+        return;
+    }
     for (unsigned i = 0; i < n; ++i) {
         int32_t oct = 0;
         if (source) {
@@ -173,21 +201,11 @@ static void run(const voice *c, uint32_t *phase, uint32_t *previous, uint32_t st
             octaves[i] = oct;
             if (!control)
                 oct = 0;
-        } else if (octaves) {
+        } else {
             oct = octaves[i];
         }
         uint32_t inc = oct ? modulate(step, oct) : step;
-        int32_t y;
-        if (c->shape < 4) {
-            y = (tri_unit(p) * c->tri + saw_unit(p) * c->saw) >> 3;
-            y += event(0u, p, inc, last, c->saw, -c->tri);
-            if (c->tri)
-                y += event(HALF, p, inc, last, 0, c->tri);
-        } else {
-            y = (pulse_high(p, c->half) ? c->high : c->low)
-                + event(0u - c->half, p, inc, last, c->step, 0) + event(c->half, p, inc, last, -c->step, 0);
-        }
-        out[i] += y;
+        out[i] += c->shape < 4 ? line_sample(c, p, inc, last) : pulse_sample(c, p, inc, last);
         p += inc;
         last = inc;
     }
