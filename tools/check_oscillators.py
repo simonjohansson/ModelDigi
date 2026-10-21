@@ -419,7 +419,8 @@ def static_checks(renderer, folder, targets, factor):
             result.append(dict(note=note, shape=shape, max_complex_error=error,
                                passed=error <= targets["tolerances"]["complex_ratio_absolute"]))
         expected_fundamental = targets["choices"]["saw_peak"] * abs(response(hz, factor)) / (16 * np.pi)
-        assert abs(abs(measured[3][0]) / expected_fundamental - 1) < .001
+        ratio = float(abs(measured[3][0]) / expected_fundamental)
+        result.append(dict(note=note, check="saw fundamental level", level_ratio=ratio, passed=abs(ratio - 1) < .001))
     return result
 
 
@@ -559,7 +560,7 @@ def main():
               f"{worst['recorded_timing']['candidate_rate_difference_percent']:+.3f}% modulation rate, "
               f"{worst['recorded_timing']['end_lag_ms']} ms at the window end "
               f"(shape {worst['shape']}, amount {worst['amount']}, feedback {worst['feedback']})")
-    print(f"{'FAIL' if failures else 'PASS'}: {len(static)} frozen signed-shape, {len(alias)} static spectral, {len(frequencies)} frequency, {len(local)} local recording, {len(derivation)} source-phase, {len(modulation)} slow-modulation and {len(phase_sweep)} phase-sweep cases")
+    print(f"{'FAIL' if failures else 'PASS'}: {sum('shape' in row for row in static)} frozen signed-shape, {sum('check' in row for row in static)} saw level, {len(alias)} static spectral, {len(frequencies)} frequency, {len(local)} local recording, {len(derivation)} source-phase, {len(modulation)} slow-modulation and {len(phase_sweep)} phase-sweep cases")
     raise SystemExit(bool(failures))
 
 
