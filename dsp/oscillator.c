@@ -525,8 +525,9 @@ static void __attribute__((noinline)) run_plain(voice_run *run, const voice_line
 
 /* ColdFire builds run a modulated voice's sub-samples in hand-written code, the C loop in run_voice
  * exactly: at each factor change modulate's increment and advance's rate-change residual, then
- * steady's step with every running value in a register. A sub-sample that crosses a reset, knee or
- * pulse edge goes through steady itself. */
+ * steady's step with every running value in a register. A sub-sample that crosses a pulse edge, or
+ * takes a line's phase into the other half of the cycle, goes through steady itself: increments stay
+ * below half a cycle, so that is the phase's overflow at the knee or carry at the reset. */
 #if defined(__mcoldfire__) && !defined(MODELDIGI_NO_ASM)
 #define VOICE_ASM 1
 typedef struct {
@@ -773,19 +774,10 @@ __asm__(
     "	jls	.Lv_pulse\n"
     /* A line's sub-sample. */
     ".Lv_line:\n"
-    "	move.l	%d2,%d7\n"
     "	add.l	%a1,%d3\n"
     "	addx.l	%d4,%d2\n"
-    "	move.l	%d7,%d0\n"
-    "	not.l	%d0\n"
-    "	cmp.l	%d4,%d0\n"
-    "	jcs	.Lv_event\n"               /* the reset */
-    "	tst.l	28(%a0)\n"
-    "	jeq	.Lv_value\n"
-    "	move.l	#0x7fffffff,%d0\n"
-    "	sub.l	%d7,%d0\n"
-    "	cmp.l	%d4,%d0\n"
-    "	jcs	.Lv_event\n"               /* the knee */
+    "	jvs	.Lv_event\n"               /* into the other half: the knee (V) */
+    "	jcs	.Lv_event\n"               /* or the reset (C), or through a carry onto either */
     ".Lv_value:\n"                    /* the line held in 44-52(sp): b high, b low, a */
     "	move.l	%d2,%d7\n"
     "	clr.w	%d7\n"
@@ -1263,19 +1255,10 @@ __asm__(
     "	cmp.l	(%a0),%d5\n"
     "	jls	.Ls_pstep\n"
     ".Ls_lstep:\n"
-    "	move.l	%d2,%d7\n"
     "	add.l	%a1,%d3\n"
     "	addx.l	%d4,%d2\n"
-    "	move.l	%d7,%d0\n"
-    "	not.l	%d0\n"
-    "	cmp.l	%d4,%d0\n"
-    "	jcs	.Ls_event\n"               /* the reset */
-    "	tst.l	28(%a0)\n"
-    "	jeq	.Ls_value\n"
-    "	move.l	#0x7fffffff,%d0\n"
-    "	sub.l	%d7,%d0\n"
-    "	cmp.l	%d4,%d0\n"
-    "	jcs	.Ls_event\n"               /* the knee */
+    "	jvs	.Ls_event\n"               /* into the other half: the knee (V) */
+    "	jcs	.Ls_event\n"               /* or the reset (C), or through a carry onto either */
     ".Ls_value:\n"                    /* the line held in 44-52(sp): b high, b low, a */
     "	move.l	%d2,%d7\n"
     "	clr.w	%d7\n"
