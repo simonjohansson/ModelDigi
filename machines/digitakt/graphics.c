@@ -57,11 +57,11 @@ static int32_t wave(void *bmp, int32_t x, int32_t y, int shape)
     uint32_t rows[17];
     clear(rows);
     if (shape == 0 || shape == 1) {
-        line(rows, 1, 3, 8, 13);
-        line(rows, 8, 13, 15, shape == 0 ? 3 : 8);
-        if (shape == 1) line(rows, 15, 8, 15, 3);
+        line(rows, 1, 13, 8, 3);
+        line(rows, 8, 3, 15, shape == 0 ? 13 : 8);
+        if (shape == 1) line(rows, 15, 8, 15, 13);
     } else if (shape < 4) {
-        int start = shape == 2 ? 13 : 3, end = 16 - start;
+        int start = shape == 2 ? 3 : 13, end = 16 - start;
         line(rows, 1, start, 15, end); line(rows, 15, end, 15, start);
     } else {
         int edge = shape == 4 ? 8 : shape == 5 ? 6 : 4;

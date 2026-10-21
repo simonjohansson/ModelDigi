@@ -295,6 +295,12 @@ static void graphics(void)
         knob(MD_WAV3)->draw(bitmap, 0, 0, i << 8, 0);
         assert((memcmp(images[i], bitmap, sizeof bitmap) != 0) == (i == 1));
     }
+    /* Native bitmap y runs bottom-up; match the panel's upward-pointing glyphs. */
+    for (int i = 0; i < 2; ++i)
+        assert(images[i][13][8] && !images[i][3][8]);
+    assert(images[2][3][1] && !images[2][13][1]);
+    knob(MD_WAV3)->draw(bitmap, 0, 0, 1 << 8, 0);
+    assert(bitmap[13][1] && !bitmap[3][1]);
     knob(MD_CTRL)->draw(bitmap, 0, 0, 63 << 8, 0); memcpy(images[0], bitmap, sizeof bitmap);
     knob(MD_CTRL)->draw(bitmap, 0, 0, 64 << 8, 0); assert(memcmp(images[0], bitmap, sizeof bitmap));
     assert(modeldigi_machine.icon);
