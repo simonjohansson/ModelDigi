@@ -42,7 +42,7 @@ static uint32_t increment(uint32_t f)
 }
 
 /* floor(a * b / 2^32) from 16-bit partial products. */
-static uint32_t mulhi(uint32_t a, uint32_t b)
+static inline __attribute__((always_inline)) uint32_t mulhi(uint32_t a, uint32_t b)
 {
     uint32_t ah = a >> 16, al = a & 0xffff, bh = b >> 16, bl = b & 0xffff;
     uint32_t mid = (al * bl >> 16) + (ah * bl & 0xffff) + (al * bh & 0xffff);
@@ -57,7 +57,7 @@ static int32_t scaled(int32_t k, uint16_t level)
 }
 
 /* An increment times 2^(octaves / 65536), clamped to the frequency bounds. */
-static uint32_t modulate(uint32_t inc, int32_t octaves)
+static inline __attribute__((always_inline)) uint32_t modulate(uint32_t inc, int32_t octaves)
 {
     uint32_t frac = (uint32_t)octaves & 0xffff, i = frac >> 10;
     uint32_t m = exp2_q15[i] + (((uint32_t)(exp2_q15[i + 1] - exp2_q15[i]) * (frac & 1023)) >> 10);
@@ -71,7 +71,7 @@ static uint32_t modulate(uint32_t inc, int32_t octaves)
 }
 
 /* d / inc in Q15, for 0 <= d < inc. */
-static int32_t fraction(uint32_t d, uint32_t inc)
+static inline __attribute__((always_inline)) int32_t fraction(uint32_t d, uint32_t inc)
 {
     unsigned shift = inc >> 15 ? 17u - (unsigned)__builtin_clz(inc) : 0;
     return (int32_t)(((d >> shift) << 15) / (inc >> shift));
@@ -79,13 +79,13 @@ static int32_t fraction(uint32_t d, uint32_t inc)
 
 /* Kernel residues in Q15 at distance x (Q15, 0..1 sample) from an event: a unit step leaves
  * (1 - x)^2 / 2 (positive before the event, negative after), a unit slope change (1 - x)^3 / 6. */
-static int32_t step_residue(int32_t x)
+static inline __attribute__((always_inline)) int32_t step_residue(int32_t x)
 {
     int32_t a = 32768 - x;
     return (a * a) >> 16;
 }
 
-static int32_t corner_residue(int32_t x)
+static inline __attribute__((always_inline)) int32_t corner_residue(int32_t x)
 {
     int32_t a = 32768 - x;
     return (((a * a) >> 15) * a >> 15) / 6;
@@ -95,7 +95,7 @@ static int32_t corner_residue(int32_t x)
  * steps by inc next and stepped by last before: a step of step_q14 * 2^14 output units and a
  * triangle corner whose slope changes by 8 * kink Q16 units a cycle, (inc >> 16) * kink output
  * units a sample. */
-static int32_t event(uint32_t e, uint32_t p, uint32_t inc, uint32_t last, int32_t step_q14, int32_t kink)
+static inline __attribute__((always_inline)) int32_t event(uint32_t e, uint32_t p, uint32_t inc, uint32_t last, int32_t step_q14, int32_t kink)
 {
     int32_t y = 0;
     uint32_t ahead = e - p - 1, behind = p - e;
@@ -130,34 +130,21 @@ static void describe(voice *c, unsigned shape, uint16_t level)
     }
 }
 
-static int pulse_high(uint32_t p, uint32_t half)
+static inline __attribute__((always_inline)) int pulse_high(uint32_t p, uint32_t half)
 {
     return p + half < 2 * half;
 }
 
 /* Q16 units: the saw falls from +1 to -1, the triangle runs +1, -1, +1. */
-static int32_t saw_unit(uint32_t p)
+static inline __attribute__((always_inline)) int32_t saw_unit(uint32_t p)
 {
     return 65536 - (int32_t)(((p >> 14) + 1) >> 1);
 }
 
-static int32_t tri_unit(uint32_t p)
+static inline __attribute__((always_inline)) int32_t tri_unit(uint32_t p)
 {
     uint32_t fold = p < HALF ? p : ~p;
     return 65536 - (int32_t)(((fold >> 13) + 1) >> 1);
-}
-
-static int32_t sample(const voice *c, uint32_t p, uint32_t inc, uint32_t last)
-{
-    if (c->shape < 4) {
-        int32_t y = (tri_unit(p) * c->tri + saw_unit(p) * c->saw) >> 3;
-        y += event(0u, p, inc, last, c->saw, -c->tri);
-        if (c->tri)
-            y += event(HALF, p, inc, last, 0, c->tri);
-        return y;
-    }
-    return (pulse_high(p, c->half) ? c->high : c->low)
-        + event(0u - c->half, p, inc, last, c->step, 0) + event(c->half, p, inc, last, -c->step, 0);
 }
 
 /* signed a * b / 2^32 for b >= 0. */
@@ -165,6 +152,47 @@ static int32_t smulhi(int32_t a, uint32_t b)
 {
     int32_t m = (int32_t)mulhi((uint32_t)(a < 0 ? -a : a), b);
     return a < 0 ? -m : m;
+}
+
+/* One voice over n samples into out, from its phase and previous step. Its step is modulated by
+ * octaves[i] where octaves is given and nonzero; source, when given, receives oscillator 3's own
+ * modulation from each sample's phase before the step (CONTROL feeding it when control is set). */
+static void run(const voice *c, uint32_t *phase, uint32_t *previous, uint32_t step, int32_t *octaves,
+                const voice *source, uint32_t depth, int control, int32_t *out, unsigned n)
+{
+    uint32_t p = *phase, last = *previous;
+    for (unsigned i = 0; i < n; ++i) {
+        int32_t oct = 0;
+        if (source) {
+            if (source->shape < 4) {
+                int32_t value = tri_unit(p) * lines[source->shape].tri + saw_unit(p) * lines[source->shape].saw;   /* Q30 */
+                oct = smulhi(bias[source->shape] - value / 2, depth << 2);
+            } else {
+                oct = pulse_high(p, source->half) ? 0 : (int32_t)depth;
+            }
+            octaves[i] = oct;
+            if (!control)
+                oct = 0;
+        } else if (octaves) {
+            oct = octaves[i];
+        }
+        uint32_t inc = oct ? modulate(step, oct) : step;
+        int32_t y;
+        if (c->shape < 4) {
+            y = (tri_unit(p) * c->tri + saw_unit(p) * c->saw) >> 3;
+            y += event(0u, p, inc, last, c->saw, -c->tri);
+            if (c->tri)
+                y += event(HALF, p, inc, last, 0, c->tri);
+        } else {
+            y = (pulse_high(p, c->half) ? c->high : c->low)
+                + event(0u - c->half, p, inc, last, c->step, 0) + event(c->half, p, inc, last, -c->step, 0);
+        }
+        out[i] += y;
+        p += inc;
+        last = inc;
+    }
+    *phase = p;
+    *previous = last;
 }
 
 void modeldigi_osc_init(modeldigi_osc_state *state)
@@ -186,25 +214,16 @@ void modeldigi_osc_render(modeldigi_osc_state *state, const modeldigi_osc_params
     }
     uint32_t depth = params->modulation_depth_q16_16 > 131072 ? 131072 : params->modulation_depth_q16_16;
     int modulated = params->modulation_enabled && depth;
-    unsigned source = c[2].shape;
-    for (size_t i = 0; i < frames; ++i) {
-        int32_t octaves = 0;
-        if (modulated) {
-            uint32_t x = state->phase[2];
-            if (source < 4) {
-                int32_t value = tri_unit(x) * lines[source].tri + saw_unit(x) * lines[source].saw;   /* Q30 */
-                octaves = smulhi(bias[source] - value / 2, depth << 2);
-            } else {
-                octaves = pulse_high(x, pulses[source - 4].half) ? 0 : (int32_t)depth;
-            }
-        }
-        int32_t y = 0;
-        for (unsigned v = 0; v < 3; ++v) {
-            uint32_t inc = octaves && (v < 2 || params->osc3_control) ? modulate(step[v], octaves) : step[v];
-            y += sample(&c[v], state->phase[v], inc, state->last[v]);
-            state->phase[v] += inc;
-            state->last[v] = inc;
-        }
-        output[i] = y;
+    for (size_t done = 0; done < frames;) {
+        unsigned n = frames - done < 32 ? (unsigned)(frames - done) : 32;
+        int32_t *out = output + done, octaves[32];
+        for (unsigned i = 0; i < n; ++i)
+            out[i] = 0;
+        /* Oscillator 3 first: its phases set the block's modulation. */
+        run(&c[2], &state->phase[2], &state->last[2], step[2], modulated ? octaves : 0, modulated ? &c[2] : 0, depth,
+            params->osc3_control, out, n);
+        for (unsigned v = 0; v < 2; ++v)
+            run(&c[v], &state->phase[v], &state->last[v], step[v], modulated ? octaves : 0, 0, 0, 0, out, n);
+        done += n;
     }
 }
