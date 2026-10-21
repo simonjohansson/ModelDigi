@@ -1,3 +1,7 @@
+![Model D oscillator controls mapped to ModelDigi’s OSC and MIX pages](docs/images/model-d-control-map.png)
+
+Instrument photograph: [Sweetwater](https://www.sweetwater.com/store/detail/MiniModelD--moog-minimoog-model-d-analog-synthesizer-appalachian-cherry). Digitakt screens: ModelDigi.
+
 # ModelDigi
 
 A future Minimoog Model D clone for Elektron machines. The shared C oscillator
