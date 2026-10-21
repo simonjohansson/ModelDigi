@@ -325,6 +325,144 @@ static void finish(struct modeldigi_osc_voice *o, const voice_run *r)
     o->held = r->held;
 }
 
+/* b * x exactly, b signed: as unsigned, a negative b is b + 2^32. */
+static int64_t product(int32_t b, uint32_t x)
+{
+    return (int64_t)(mul64((uint32_t)b, x) - (b < 0 ? (uint64_t)x << 32 : 0));
+}
+
+/* b * v for a Q0.64 v, as 96 bits: the low word and the signed upper 64 bits. */
+typedef struct {
+    uint32_t low;
+    int64_t high;
+} wide;
+
+static wide times_wide(int32_t b, uint64_t v)
+{
+    int64_t low = product(b, (uint32_t)v);
+    wide w = { (uint32_t)low, product(b, (uint32_t)(v >> 32)) + (low >> 32) };
+    return w;
+}
+
+/* An unmodulated line between events: its value a + floor(b * phase / 2^64) is carried as a 96-bit
+ * a 2^64 + b phase, which each sub-sample adds b times the constant increment to, exactly. */
+typedef struct {
+    uint64_t phase, inc;
+    wide sum, step;
+    int32_t previous, held;
+} ramp;
+
+/* Take up the line under q's phase. */
+static void anchor(ramp *q, const voice_lines *d)
+{
+    unsigned k = (unsigned)(q->phase >> 63);
+    q->sum = times_wide(d->b[k], q->phase);
+    q->sum.high += (int64_t)d->a[k] << 32;
+    q->step = times_wide(d->b[k], q->inc);
+}
+
+/* Store (first) or add up to count held-back samples of the ramp into mix, as steady would, stopping
+ * before a sub-sample that enters the other half of the cycle; returns how many. ColdFire builds run
+ * its assembly instead. */
+static unsigned __attribute__((unused)) ramp_run(ramp *q, int32_t *mix, unsigned count, int first)
+{
+    unsigned n = 0;
+    for (; n < count; ++n) {
+        uint64_t phase = q->phase + q->inc;
+        if (((uint32_t)(phase >> 32) ^ (uint32_t)(q->phase >> 32)) >> 31)
+            break;
+        q->phase = phase;
+        uint32_t low = q->sum.low + q->step.low;
+        q->sum.high += q->step.high + (low < q->step.low);
+        q->sum.low = low;
+        int32_t out = q->previous;
+        q->previous = q->held = (int32_t)(q->sum.high >> 32);
+        mix[n] = first ? out : mix[n] + out;
+    }
+    return n;
+}
+
+/* ColdFire builds run a ramp's sub-samples between events in hand-written code, ramp_run's exact
+ * equivalent with every running value in a register. */
+#if defined(__mcoldfire__) && !defined(MODELDIGI_NO_ASM)
+/* The loop reads and writes a ramp by these offsets. */
+typedef char ramp_layout[offsetof(ramp, inc) == 8 && offsetof(ramp, sum) == 16 && offsetof(ramp, step) == 28 &&
+                         offsetof(wide, high) == 4 && offsetof(ramp, previous) == 40 &&
+                         offsetof(ramp, held) == 44 ? 1 : -1];
+unsigned modeldigi_ramp_run(ramp *q, int32_t *mix, unsigned count, int first);
+__asm__(
+    "	.pushsection .text\n"
+    "	.even\n"
+    "	.type	modeldigi_ramp_run, @function\n"
+    "modeldigi_ramp_run:\n"
+    "	lea	-40(%sp),%sp\n"
+    "	movem.l	%d2-%d7/%a2-%a5,(%sp)\n"
+    "	move.l	44(%sp),%a0\n"          /* r */
+    "	move.l	48(%sp),%a3\n"          /* mix */
+    "	move.l	52(%sp),%d0\n"
+    "	lsl.l	#2,%d0\n"
+    "	lea	(%a3,%d0.l),%a5\n"      /* its end */
+    "	move.l	(%a0),%d6\n"            /* phase */
+    "	move.l	4(%a0),%d5\n"
+    "	move.l	8(%a0),%d7\n"           /* increment */
+    "	move.l	12(%a0),%a1\n"
+    "	move.l	16(%a0),%d0\n"          /* sum: low, then high */
+    "	move.l	20(%a0),%d2\n"
+    "	move.l	24(%a0),%d1\n"
+    "	move.l	28(%a0),%a2\n"          /* step: low, then high */
+    "	move.l	32(%a0),%d4\n"
+    "	move.l	36(%a0),%d3\n"
+    "	move.l	40(%a0),%a4\n"          /* previous */
+    "	tst.l	56(%sp)\n"
+    "	jeq	2f\n"
+    "1:	add.l	%a1,%d5\n"
+    "	addx.l	%d7,%d6\n"
+    "	jvs	3f\n"
+    "	jcs	3f\n"
+    "	add.l	%a2,%d0\n"
+    "	addx.l	%d3,%d1\n"
+    "	addx.l	%d4,%d2\n"
+    "	move.l	%a4,(%a3)+\n"
+    "	move.l	%d2,%a4\n"
+    "	cmpa.l	%a5,%a3\n"
+    "	jne	1b\n"
+    "	jra	4f\n"
+    "2:	add.l	%a1,%d5\n"
+    "	addx.l	%d7,%d6\n"
+    "	jvs	3f\n"
+    "	jcs	3f\n"
+    "	add.l	%a2,%d0\n"
+    "	addx.l	%d3,%d1\n"
+    "	addx.l	%d4,%d2\n"
+    "	adda.l	(%a3),%a4\n"
+    "	move.l	%a4,(%a3)+\n"
+    "	move.l	%d2,%a4\n"
+    "	cmpa.l	%a5,%a3\n"
+    "	jne	2b\n"
+    "	jra	4f\n"
+    "3:	sub.l	%a1,%d5\n"              /* undo the event's step: steady takes it */
+    "	subx.l	%d7,%d6\n"
+    "4:	move.l	%d6,(%a0)\n"
+    "	move.l	%d5,4(%a0)\n"
+    "	move.l	%d0,16(%a0)\n"
+    "	move.l	%d2,20(%a0)\n"
+    "	move.l	%d1,24(%a0)\n"
+    "	move.l	%a4,40(%a0)\n"
+    "	move.l	%a3,%d0\n"
+    "	sub.l	48(%sp),%d0\n"
+    "	jeq	5f\n"
+    "	move.l	%a4,44(%a0)\n"          /* held: the last value */
+    "	lsr.l	#2,%d0\n"
+    "5:	movem.l	(%sp),%d2-%d7/%a2-%a5\n"
+    "	lea	40(%sp),%sp\n"
+    "	rts\n"
+    "	.size	modeldigi_ramp_run, .-modeldigi_ramp_run\n"
+    "	.popsection\n");
+#define RAMP_RUN modeldigi_ramp_run
+#else
+#define RAMP_RUN ramp_run
+#endif
+
 /* steps * count, for a silent clock. */
 static uint64_t times(uint64_t step, uint32_t count)
 {
@@ -344,6 +482,33 @@ static void __attribute__((noinline)) run_plain(voice_run *run, const voice_line
     voice_run r = *run;   /* a local copy: mix stores cannot alias it */
     int32_t out = advance(&r, d, inc);
     mix[0] = first ? out : mix[0] + out;
+    if (d->shape < 4) {
+        /* Ramps between events, each event through steady; then the sum takes up the line again,
+         * and steady's value, within a unit of the line, becomes the exact one before it is out. */
+        ramp q = { r.phase, inc, { 0, 0 }, { 0, 0 }, r.previous, r.held };
+        for (unsigned i = 1;; ++i) {
+            anchor(&q, d);
+            q.previous += (int32_t)(q.sum.high >> 32) - q.held;
+            q.held = (int32_t)(q.sum.high >> 32);
+            if (i < m)
+                i += RAMP_RUN(&q, mix + i, m - i, first);
+            if (i == m)
+                break;
+            r.phase = q.phase;
+            r.previous = q.previous;
+            r.held = q.held;
+            out = steady(&r, d, inc);
+            mix[i] = first ? out : mix[i] + out;
+            q.phase = r.phase;
+            q.previous = r.previous;
+            q.held = r.held;
+        }
+        r.phase = q.phase;
+        r.previous = q.previous;
+        r.held = q.held;
+        *run = r;
+        return;
+    }
     /* The empty asm hides the phase's closed form, which would need a 64-bit multiply helper. */
     if (first)
         for (unsigned i = 1; i < m; ++i) {
