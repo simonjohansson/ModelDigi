@@ -523,6 +523,377 @@ static void __attribute__((noinline)) run_plain(voice_run *run, const voice_line
     *run = r;
 }
 
+/* ColdFire builds run a modulated voice's sub-samples in hand-written code, the C loop in run_voice
+ * exactly: at each factor change modulate's increment and advance's rate-change residual, then
+ * steady's step with every running value in a register. A sub-sample that crosses a reset, knee or
+ * pulse edge goes through steady itself. */
+#if defined(__mcoldfire__) && !defined(MODELDIGI_NO_ASM)
+#define VOICE_ASM 1
+typedef struct {
+    uint64_t step, lo, hi, inc;   /* the voice's unmodulated increment, bounds, the first increment */
+    voice_run *r;
+    const voice_lines *d;
+    const octave_factor *mod;
+    int32_t *mix;
+    uint32_t m;
+    uint32_t scratch[7];
+} voice_job;
+/* The loop reads these structures by these offsets. */
+typedef char voice_job_layout[offsetof(voice_job, r) == 32 && offsetof(voice_job, m) == 48 &&
+                              offsetof(voice_job, scratch) == 52 && offsetof(voice_run, last) == 8 &&
+                              offsetof(voice_run, previous) == 16 && offsetof(voice_run, held) == 20 &&
+                              offsetof(voice_lines, a) == 8 && offsetof(voice_lines, b) == 16 &&
+                              offsetof(voice_lines, knee) == 28 && offsetof(voice_lines, high) == 32 &&
+                              offsetof(voice_lines, low) == 36 && offsetof(voice_lines, rise) == 40 &&
+                              offsetof(voice_lines, fall) == 44 && sizeof(octave_factor) == 8 ? 1 : -1];
+
+/* An event sub-sample for the loop: steady's own step. */
+int32_t __attribute__((noinline)) modeldigi_event_step(voice_run *r, const voice_lines *d, uint32_t high,
+                                                       uint32_t low)
+{
+    return steady(r, d, (uint64_t)high << 32 | low);
+}
+
+void modeldigi_voice_run(voice_job *j);
+/* Registers: d2/d3 phase, d4/a1 increment, d6 held-back sample, a0 lines, a2 factor, a3/a4 mix and
+ * its end, a5 job, a6 run. Scratch: 52/56 phase, 60 the mix after the last event, 64/68 the new
+ * increment, 72 delta, 76 the old increment's high word. */
+__asm__(
+    "	.pushsection .text\n"
+    "	.even\n"
+    "	.type	modeldigi_voice_run, @function\n"
+    "modeldigi_voice_run:\n"
+    "	lea	-44(%sp),%sp\n"
+    "	movem.l	%d2-%d7/%a2-%a6,(%sp)\n"
+    "	move.l	48(%sp),%a5\n"
+    "	move.l	32(%a5),%a6\n"
+    "	move.l	36(%a5),%a0\n"
+    "	move.l	40(%a5),%a2\n"
+    "	move.l	44(%a5),%a3\n"
+    "	move.l	48(%a5),%d0\n"
+    "	lsl.l	#2,%d0\n"
+    "	lea	(%a3,%d0.l),%a4\n"
+    "	clr.l	60(%a5)\n"
+    "	move.l	(%a6),%d2\n"
+    "	move.l	4(%a6),%d3\n"
+    "	move.l	8(%a6),%d4\n"
+    "	move.l	12(%a6),%a1\n"
+    "	move.l	16(%a6),%d6\n"
+    "	move.l	24(%a5),%d0\n"            /* the first sub-sample's increment is given */
+    "	move.l	28(%a5),%d1\n"
+    "	jra	.Lv_given\n"
+    /* A factor change: the increment for mod[i]. */
+    ".Lv_change:\n"
+    "	tst.l	(%a2)\n"
+    "	jne	.Lv_modulate\n"
+    "	move.l	(%a5),%d0\n"
+    "	move.l	4(%a5),%d1\n"
+    "	jra	.Lv_given\n"
+    ".Lv_modulate:\n"
+    "	move.l	%d2,52(%a5)\n"
+    "	move.l	%d3,56(%a5)\n"
+    "	move.l	%d4,76(%a5)\n"
+    "	move.l	(%a5),%d2\n"
+    "	move.l	(%a2),%d4\n"
+    "	move.l	%d2,%d0\n"
+    "	clr.w	%d0\n"
+    "	swap	%d0\n"
+    "	mulu.l	%d4,%d0\n"
+    "	add.l	%d0,%d0\n"
+    "	mvz.w	%d2,%d1\n"
+    "	mulu.l	%d4,%d1\n"
+    "	move.l	%d1,%d3\n"
+    "	moveq	#15,%d5\n"
+    "	lsr.l	%d5,%d3\n"
+    "	add.l	%d3,%d0\n"
+    "	moveq	#17,%d5\n"
+    "	lsl.l	%d5,%d1\n"
+    "	move.l	4(%a5),%d3\n"
+    "	clr.w	%d3\n"
+    "	swap	%d3\n"
+    "	mulu.l	%d4,%d3\n"
+    "	moveq	#15,%d5\n"
+    "	lsr.l	%d5,%d3\n"
+    "	move.l	%d3,%d5\n"
+    "	clr.w	%d5\n"
+    "	swap	%d5\n"
+    "	add.l	%d5,%d0\n"
+    "	swap	%d3\n"
+    "	clr.w	%d3\n"
+    "	add.l	%d3,%d1\n"
+    "	moveq	#0,%d5\n"
+    "	addx.l	%d5,%d0\n"
+    "	move.l	4(%a2),%d2\n"              /* whole octaves */
+    "	jle	.Lv_down\n"
+    ".Lv_up:\n"
+    "	cmp.l	16(%a5),%d0\n"
+    "	jcs	.Lv_shl\n"
+    "	jne	.Lv_clamp\n"
+    "	cmp.l	20(%a5),%d1\n"
+    "	jcc	.Lv_clamp\n"
+    ".Lv_shl:\n"
+    "	add.l	%d1,%d1\n"
+    "	addx.l	%d0,%d0\n"
+    "	subq.l	#1,%d2\n"
+    "	jgt	.Lv_up\n"
+    "	jra	.Lv_clamp\n"
+    ".Lv_down:\n"
+    "	jeq	.Lv_clamp\n"
+    ".Lv_downloop:\n"
+    "	cmp.l	8(%a5),%d0\n"
+    "	jhi	.Lv_shr\n"
+    "	jcs	.Lv_clamp\n"
+    "	cmp.l	12(%a5),%d1\n"
+    "	jls	.Lv_clamp\n"
+    ".Lv_shr:\n"
+    "	lsr.l	#1,%d1\n"
+    "	move.l	%d0,%d3\n"
+    "	moveq	#31,%d5\n"
+    "	lsl.l	%d5,%d3\n"
+    "	or.l	%d3,%d1\n"
+    "	and.l	#0xffff0000,%d1\n"
+    "	lsr.l	#1,%d0\n"
+    "	addq.l	#1,%d2\n"
+    "	jlt	.Lv_downloop\n"
+    ".Lv_clamp:\n"
+    "	cmp.l	8(%a5),%d0\n"
+    "	jhi	.Lv_nolo\n"
+    "	jcs	.Lv_lo\n"
+    "	cmp.l	12(%a5),%d1\n"
+    "	jcc	.Lv_nolo\n"
+    ".Lv_lo:\n"
+    "	move.l	8(%a5),%d0\n"
+    "	move.l	12(%a5),%d1\n"
+    "	jra	.Lv_bounded\n"
+    ".Lv_nolo:\n"
+    "	cmp.l	16(%a5),%d0\n"
+    "	jcs	.Lv_bounded\n"
+    "	jhi	.Lv_hi\n"
+    "	cmp.l	20(%a5),%d1\n"
+    "	jls	.Lv_bounded\n"
+    ".Lv_hi:\n"
+    "	move.l	16(%a5),%d0\n"
+    "	move.l	20(%a5),%d1\n"
+    ".Lv_bounded:\n"
+    "	move.l	52(%a5),%d2\n"
+    "	move.l	56(%a5),%d3\n"
+    "	move.l	76(%a5),%d4\n"
+    /* New increment d0:d1, old d4:a1: a line's residual of the rate change, as advance. */
+    ".Lv_given:\n"
+    "	moveq	#4,%d5\n"
+    "	cmp.l	(%a0),%d5\n"
+    "	jls	.Lv_set\n"                  /* pulses: none */
+    "	move.l	%d1,%d5\n"
+    "	sub.l	%a1,%d5\n"
+    "	move.l	%d0,%d7\n"
+    "	subx.l	%d4,%d7\n"                 /* delta: the difference's high word */
+    "	move.l	%d7,%d5\n"
+    "	jpl	.Lv_abs\n"
+    "	neg.l	%d5\n"
+    ".Lv_abs:\n"
+    "	cmp.l	#4096,%d5\n"
+    "	jcs	.Lv_set\n"
+    "	move.l	%d0,64(%a5)\n"
+    "	move.l	%d1,68(%a5)\n"
+    "	move.l	%d7,72(%a5)\n"
+    "	move.l	%d2,%d1\n"                 /* b of the line under the phase */
+    "	add.l	%d1,%d1\n"
+    "	subx.l	%d1,%d1\n"
+    "	and.l	#4,%d1\n"
+    "	move.l	16(%a0,%d1.l),%d1\n"
+    "	move.l	%d1,%d0\n"                 /* mulhi(b, |delta|) */
+    "	swap	%d0\n"
+    "	ext.l	%d0\n"
+    "	mvz.w	%d1,%d1\n"
+    "	move.l	%d5,%d4\n"
+    "	clr.w	%d4\n"
+    "	swap	%d4\n"
+    "	mvz.w	%d5,%d5\n"
+    "	move.l	%d0,%d7\n"
+    "	muls.l	%d4,%d7\n"
+    "	muls.l	%d5,%d0\n"
+    "	mulu.l	%d1,%d4\n"
+    "	mulu.l	%d1,%d5\n"
+    "	move.l	%d0,%d1\n"
+    "	swap	%d1\n"
+    "	ext.l	%d1\n"
+    "	add.l	%d1,%d7\n"
+    "	move.l	%d4,%d1\n"
+    "	clr.w	%d1\n"
+    "	swap	%d1\n"
+    "	add.l	%d1,%d7\n"
+    "	mvz.w	%d0,%d0\n"
+    "	mvz.w	%d4,%d4\n"
+    "	add.l	%d4,%d0\n"
+    "	clr.w	%d5\n"
+    "	swap	%d5\n"
+    "	add.l	%d5,%d0\n"
+    "	clr.w	%d0\n"
+    "	swap	%d0\n"
+    "	add.l	%d0,%d7\n"
+    "	tst.l	72(%a5)\n"
+    "	jpl	.Lv_pos\n"
+    "	neg.l	%d7\n"
+    ".Lv_pos:\n"
+    "	move.l	%d7,%d0\n"                 /* previous += mul16(change, 10923) */
+    "	swap	%d0\n"
+    "	ext.l	%d0\n"
+    "	move.l	#10923,%d1\n"
+    "	muls.l	%d1,%d0\n"
+    "	mvz.w	%d7,%d7\n"
+    "	mulu.l	%d1,%d7\n"
+    "	clr.w	%d7\n"
+    "	swap	%d7\n"
+    "	add.l	%d7,%d0\n"
+    "	add.l	%d0,%d6\n"
+    "	move.l	64(%a5),%d0\n"
+    "	move.l	68(%a5),%d1\n"
+    ".Lv_set:\n"
+    "	move.l	%d0,%d4\n"
+    "	move.l	%d1,%a1\n"
+    "	moveq	#4,%d5\n"
+    "	cmp.l	(%a0),%d5\n"
+    "	jls	.Lv_pulse\n"
+    /* A line's sub-sample. */
+    ".Lv_line:\n"
+    "	move.l	%d2,%d7\n"
+    "	add.l	%a1,%d3\n"
+    "	addx.l	%d4,%d2\n"
+    "	move.l	%d7,%d0\n"
+    "	not.l	%d0\n"
+    "	cmp.l	%d4,%d0\n"
+    "	jcs	.Lv_event\n"               /* the reset */
+    "	tst.l	28(%a0)\n"
+    "	jeq	.Lv_value\n"
+    "	move.l	#0x7fffffff,%d0\n"
+    "	sub.l	%d7,%d0\n"
+    "	cmp.l	%d4,%d0\n"
+    "	jcs	.Lv_event\n"               /* the knee */
+    ".Lv_value:\n"
+    "	move.l	%d2,%d1\n"
+    "	add.l	%d1,%d1\n"
+    "	subx.l	%d1,%d1\n"
+    "	and.l	#4,%d1\n"
+    "	move.l	16(%a0,%d1.l),%d5\n"       /* b */
+    "	move.l	8(%a0,%d1.l),%d1\n"        /* a */
+    "	move.l	%d5,%d0\n"
+    "	swap	%d0\n"
+    "	ext.l	%d0\n"
+    "	move.l	%d2,%d7\n"
+    "	clr.w	%d7\n"
+    "	swap	%d7\n"
+    "	mvz.w	%d5,%d5\n"
+    "	mulu.l	%d7,%d5\n"
+    "	clr.w	%d5\n"
+    "	swap	%d5\n"
+    "	add.l	%d5,%d1\n"
+    "	muls.l	%d0,%d7\n"
+    "	add.l	%d7,%d1\n"
+    "	mvz.w	%d2,%d7\n"
+    "	muls.l	%d0,%d7\n"
+    "	swap	%d7\n"
+    "	ext.l	%d7\n"
+    "	add.l	%d7,%d1\n"
+    "	add.l	%d6,(%a3)+\n"
+    "	move.l	%d1,%d6\n"
+    "	cmpa.l	%a4,%a3\n"
+    "	jeq	.Lv_done\n"
+    "	addq.l	#8,%a2\n"
+    "	move.l	(%a2),%d0\n"
+    "	cmp.l	-8(%a2),%d0\n"
+    "	jne	.Lv_change\n"
+    "	move.l	4(%a2),%d0\n"
+    "	cmp.l	-4(%a2),%d0\n"
+    "	jne	.Lv_change\n"
+    "	jra	.Lv_line\n"
+    /* A pulse's sub-sample. */
+    ".Lv_pulse:\n"
+    "	move.l	%d2,%d7\n"
+    "	add.l	%a1,%d3\n"
+    "	addx.l	%d4,%d2\n"
+    "	move.l	44(%a0),%d0\n"
+    "	sub.l	%d7,%d0\n"
+    "	subq.l	#1,%d0\n"
+    "	cmp.l	%d4,%d0\n"
+    "	jcs	.Lv_event\n"               /* the fall */
+    "	move.l	40(%a0),%d0\n"
+    "	sub.l	%d7,%d0\n"
+    "	subq.l	#1,%d0\n"
+    "	cmp.l	%d4,%d0\n"
+    "	jcs	.Lv_event\n"               /* the rise */
+    "	cmp.l	44(%a0),%d2\n"
+    "	jcs	.Lv_high\n"
+    "	cmp.l	40(%a0),%d2\n"
+    "	jcc	.Lv_high\n"
+    "	move.l	36(%a0),%d1\n"
+    "	jra	.Lv_held\n"
+    ".Lv_high:\n"
+    "	move.l	32(%a0),%d1\n"
+    ".Lv_held:\n"
+    "	add.l	%d6,(%a3)+\n"
+    "	move.l	%d1,%d6\n"
+    "	cmpa.l	%a4,%a3\n"
+    "	jeq	.Lv_done\n"
+    "	addq.l	#8,%a2\n"
+    "	move.l	(%a2),%d0\n"
+    "	cmp.l	-8(%a2),%d0\n"
+    "	jne	.Lv_change\n"
+    "	move.l	4(%a2),%d0\n"
+    "	cmp.l	-4(%a2),%d0\n"
+    "	jne	.Lv_change\n"
+    "	jra	.Lv_pulse\n"
+    /* An event: undo the step and let steady take the sub-sample. */
+    ".Lv_event:\n"
+    "	sub.l	%a1,%d3\n"
+    "	subx.l	%d4,%d2\n"
+    "	move.l	%d2,(%a6)\n"
+    "	move.l	%d3,4(%a6)\n"
+    "	move.l	%d4,8(%a6)\n"
+    "	move.l	%a1,12(%a6)\n"
+    "	move.l	%d6,16(%a6)\n"
+    "	move.l	%a1,-(%sp)\n"
+    "	move.l	%d4,-(%sp)\n"
+    "	move.l	%a0,-(%sp)\n"
+    "	move.l	%a6,-(%sp)\n"
+    "	jsr	modeldigi_event_step\n"
+    "	lea	16(%sp),%sp\n"
+    "	add.l	%d0,(%a3)+\n"
+    "	move.l	%a3,60(%a5)\n"
+    "	move.l	(%a6),%d2\n"
+    "	move.l	4(%a6),%d3\n"
+    "	move.l	16(%a6),%d6\n"
+    "	move.l	36(%a5),%a0\n"
+    "	move.l	12(%a6),%a1\n"
+    "	cmpa.l	%a4,%a3\n"
+    "	jeq	.Lv_done\n"
+    "	addq.l	#8,%a2\n"
+    "	move.l	(%a2),%d0\n"
+    "	cmp.l	-8(%a2),%d0\n"
+    "	jne	.Lv_change\n"
+    "	move.l	4(%a2),%d0\n"
+    "	cmp.l	-4(%a2),%d0\n"
+    "	jne	.Lv_change\n"
+    "	moveq	#4,%d5\n"
+    "	cmp.l	(%a0),%d5\n"
+    "	jls	.Lv_pulse\n"
+    "	jra	.Lv_line\n"
+    ".Lv_done:\n"
+    "	move.l	%d2,(%a6)\n"
+    "	move.l	%d3,4(%a6)\n"
+    "	move.l	%d4,8(%a6)\n"
+    "	move.l	%a1,12(%a6)\n"
+    "	move.l	%d6,16(%a6)\n"
+    "	cmpa.l	60(%a5),%a3\n"
+    "	jeq	.Lv_out\n"
+    "	move.l	%d6,20(%a6)\n"             /* held: the last value, unless steady took it */
+    ".Lv_out:\n"
+    "	movem.l	(%sp),%d2-%d7/%a2-%a6\n"
+    "	lea	44(%sp),%sp\n"
+    "	rts\n"
+    "	.size	modeldigi_voice_run, .-modeldigi_voice_run\n"
+    "	.popsection\n");
+#endif
+
 /* Run voice v for m sub-samples into mix (added, unless first); mod holds each sub-sample's
  * modulation factor (t = 0: none), or is null. The modulated increment is recomputed only where
  * the factor changes. */
@@ -557,6 +928,14 @@ static void run_voice(struct modeldigi_osc_voice *o, const voice_lines *d, uint6
         finish(o, &r);
         return;
     }
+#ifdef VOICE_ASM
+    if (!first) {
+        voice_job j = { step, lo, hi, inc, &r, d, mod, mix, m, { 0 } };
+        modeldigi_voice_run(&j);
+        finish(o, &r);
+        return;
+    }
+#endif
     for (unsigned i = 0; i < m; ++i) {
         int32_t out;
         if (!i || changed(mod[i], mod[i - 1])) {
