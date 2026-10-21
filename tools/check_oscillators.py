@@ -515,7 +515,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--renderer", type=Path, default=ROOT / "out/render")
     parser.add_argument("--out", type=Path, default=ROOT / "out/oscillators")
-    parser.add_argument("--factor", type=int, choices=(1, 2, 4, 8, 16), default=4)
+    parser.add_argument("--factor", type=int, choices=(1, 2, 4, 8, 16), default=1)
     parser.add_argument("--reference-dir", type=Path)
     parser.add_argument("--modulation", action="store_true", help="Also run all frozen slow-modulation cases")
     parser.add_argument("--phase-sweep", action="store_true", help="Probe reverse-saw feedback at 33 carrier/source starts")
