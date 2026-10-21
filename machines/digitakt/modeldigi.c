@@ -46,9 +46,6 @@ void modeldigi_digitakt_render(int32_t *blocks)
         if (changed) {
             decoded[track].note = note;
             modeldigi_decode(decoded[track].values, note, params);
-            /* shortcut: one audible oscillator for the measured device trial; enable the bank after qualification. */
-            params->level[1] = params->level[2] = 0;
-            params->modulation_enabled = false;
         }
         modeldigi_osc_render(&banks[track], params, &blocks[32 * track], 32);
     }

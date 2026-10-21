@@ -96,7 +96,7 @@ static void render_lifetime(void)
         defaults(live_values[track]);
         fw_render_machine[track] = 42;
         modeldigi_osc_init(&direct[track]);
-        /* The trial must stay single-oscillator even with stored bank controls enabled. */
+        /* All three oscillators sound. */
         live_values[track][MD_LEV2] = live_values[track][MD_LEV3] = 127 << 8;
         live_values[track][MD_MOD] = live_values[track][MD_DPTH] = 127 << 8;
     }
@@ -110,8 +110,6 @@ static void render_lifetime(void)
         for (int track = 0; track < 2; ++track) {
             modeldigi_osc_params p;
             modeldigi_decode(live_values[track], fw_voice_note[track], &p);
-            p.level[1] = p.level[2] = 0;
-            p.modulation_enabled = false;
             modeldigi_osc_render(&direct[track], &p, expected, 32);
             assert(!memcmp(samples + 32 * track, expected, sizeof expected));
         }
@@ -122,8 +120,6 @@ static void render_lifetime(void)
     modeldigi_osc_init(&direct[0]);
     modeldigi_osc_params p;
     modeldigi_decode(live_values[0], fw_voice_note[0], &p);
-    p.level[1] = p.level[2] = 0;
-    p.modulation_enabled = false;
     modeldigi_osc_render(&direct[0], &p, expected, 32);
     modeldigi_digitakt_render(samples);
     assert(!memcmp(samples, expected, sizeof expected));

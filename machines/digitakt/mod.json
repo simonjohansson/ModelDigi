@@ -5,12 +5,11 @@
  "author": "simonjohansson",
  "category": "Machines",
  "license": "GPL-2.0-or-later",
- "description": "ModelDigi one-oscillator timing trial (machine 42): oscillator 1 only, modulation disabled.",
+ "description": "ModelDigi naive three-oscillator experiment (machine 42): plain waveforms summed, no modulation.",
  "device": "digitakt-mk1",
  "os": "1.54",
  "defsym": {"MODELDIGI_KEY_STATE": "0x4217cbf0"},
  "sources": ["modeldigi.c", "controls.c", "graphics.c", "tuning.c", "tuning.s", "core-candidate.s", "../../dsp/oscillator.c"],
- "cflags": ["-DMODELDIGI_OVERSAMPLE=4"],
  "sites": [
   {"addr": "0x4007919e", "stock": "2f02747f202f0008", "op": "jmp", "target": "core_midi_cc_parameter"},
   {"addr": "0x40010d50", "stock": "4eb940078f0c", "op": "keep2", "target": "mp_prange_s"}
