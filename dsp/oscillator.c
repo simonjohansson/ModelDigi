@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* Oscillator bank: three phase accumulators at 48 kHz, summed. Each step and corner is smoothed by
- * a triangular kernel one sample wide on each side (2-point PolyBLEP and PolyBLAMP), so the output
- * is the ideal waveform with a sinc^2 response, sampled; no oversampling. Uses 32-bit arithmetic
- * only: a mod links no libgcc 64-bit helpers.
+ * a windowed-sinc kernel reaching 8 samples either side (tabulated BLEP and BLAMP residues), so the
+ * output is the ideal waveform low-passed by that kernel, sampled, 8 samples late; no oversampling.
+ * Uses 32-bit arithmetic only: a mod links no libgcc 64-bit helpers.
  *
  * Shapes follow the frozen reference conventions: the saw falls from its peak and resets at
  * phase 0, the triangle peaks at phase 0, pulses are centred on phase 0 with zero mean and a
@@ -13,21 +13,20 @@
  * audio is low and 0 while high. The factor multiplies oscillators 1 and 2, and oscillator 3 too
  * when CONTROL is on, clamped to 1/16..20000 Hz. */
 #include "oscillator.h"
+#include "edge_kernel.h"
 
 #define HALF   0x80000000u
 #define LO_INC 5592u            /* 1/16 Hz */
 #define HI_INC 1789569706u      /* 20000 Hz */
 
 /* Per shape, levels / 16 in units of 2^-18 full scale: triangle and saw parts of the line shapes,
- * or a pulse's high level, half width (Q0.32) and low/high ratio d / (1 - d) (Q0.32). From the
- * reference: saw peak 0.94775948, triangle 0.88925678 plus 0.0168924 saw, combination 0.6362014
- * triangle plus 0.1489326 saw, pulses high 49%, 31% and 19.5% of the cycle. */
+ * and the pulses' half widths. From the reference: saw peak 0.94775948, triangle 0.88925678 plus
+ * 0.0168924 saw, combination 0.6362014 triangle plus 0.1489326 saw, pulses high 49%, 31% and 19.5%
+ * of the cycle. */
 static const struct { int32_t tri, saw; } lines[4] = {
     { 14570, 262 }, { 9269, 2480 }, { 0, -15528 }, { 0, 15528 },
 };
-static const struct { int32_t high; uint32_t half, ratio; } pulses[3] = {
-    { 16712, 0x3eb851ecu, 0xf5f5f5fau }, { 22610, 0x27ae147bu, 0x7303b5cdu }, { 26378, 0x18f5c28fu, 0x3e032e1cu },
-};
+static const uint32_t pulse_half[3] = { 0x3eb851ecu, 0x27ae147bu, 0x18f5c28fu };   /* half widths, Q0.32 */
 /* Modulation bias of the line shapes, Q30 octaves per octave of depth. */
 static const int32_t bias[4] = { 28024656, 0, -3758096, -6549824 };
 /* 2^(i/64), Q15. */
@@ -70,44 +69,48 @@ static inline __attribute__((always_inline)) uint32_t modulate(uint32_t inc, int
     return r < LO_INC ? LO_INC : r > HI_INC ? HI_INC : r;
 }
 
-/* d / inc in Q15, for 0 <= d < inc. */
-static inline __attribute__((always_inline)) int32_t fraction(uint32_t d, uint32_t inc)
+/* floor(d * 65536 / inc) for 0 <= d < inc < 2^31, by shift and subtract. */
+static inline __attribute__((always_inline)) uint32_t fraction(uint32_t d, uint32_t inc)
 {
-    unsigned shift = inc >> 15 ? 17u - (unsigned)__builtin_clz(inc) : 0;
-    return (int32_t)(((d >> shift) << 15) / (inc >> shift));
-}
-
-/* Kernel residues in Q15 at distance x (Q15, 0..1 sample) from an event: a unit step leaves
- * (1 - x)^2 / 2 (positive before the event, negative after), a unit slope change (1 - x)^3 / 6. */
-static inline __attribute__((always_inline)) int32_t step_residue(int32_t x)
-{
-    int32_t a = 32768 - x;
-    return (a * a) >> 16;
-}
-
-static inline __attribute__((always_inline)) int32_t corner_residue(int32_t x)
-{
-    int32_t a = 32768 - x;
-    return (((a * a) >> 15) * a >> 15) / 6;
-}
-
-/* Corrections for an event at phase e on the samples either side of it, for a voice now at p that
- * steps by inc next and stepped by last before: a step of step_q14 * 2^14 output units and a
- * triangle corner whose slope changes by 8 * kink Q16 units a cycle, (inc >> 16) * kink output
- * units a sample. */
-static inline __attribute__((always_inline)) int32_t event(uint32_t e, uint32_t p, uint32_t inc, uint32_t last, int32_t step_q14, int32_t kink)
-{
-    int32_t y = 0;
-    uint32_t ahead = e - p - 1, behind = p - e;
-    if (ahead < inc) {
-        int32_t x = fraction(ahead, inc), bend = (int32_t)(inc >> 16) * kink;
-        y += (step_q14 * step_residue(x) >> 1) + ((bend >> 11) * corner_residue(x) >> 4);
+    uint32_t q = 0;
+    for (unsigned k = 0; k < 16; ++k) {
+        d <<= 1;
+        q <<= 1;
+        if (d >= inc) {
+            d -= inc;
+            q |= 1;
+        }
     }
-    if (behind < last) {
-        int32_t x = fraction(behind, last), bend = (int32_t)(last >> 16) * kink;
-        y += ((bend >> 11) * corner_residue(x) >> 4) - (step_q14 * step_residue(x) >> 1);
+    return q;
+}
+
+/* An event `behind` (0 <= behind < last) before a sample whose previous step was last: add its step
+ * of step_q14 * 2^14 output units and its slope change of 8 * kink Q16 units a cycle, (last >> 16)
+ * * kink output units a sample, to the 16 samples w[0..15] around it, the sample after it at w[8]. */
+static inline __attribute__((always_inline)) void event(int32_t *w, uint32_t behind, uint32_t last, int32_t step_q14, int32_t kink)
+{
+    int32_t d = (int32_t)fraction(behind, last), row = d >> 10, f = d & 1023, sum = 0;
+    const int16_t *a = step_table[row], *b = step_table[row + 1];
+    for (unsigned j = 0; j < 16; ++j) {
+        int32_t r = a[j] + ((b[j] - a[j]) * f >> 10);
+        sum += r;
+        w[j] += step_q14 * r >> 1;
     }
-    return y;
+    /* A step's residues over every sample sum to d - 1/2 exactly; give the rounding to the sample
+     * after the event, so the sampled output keeps the ideal waveform's mean. */
+    w[8] += step_q14 * (d - 32768 - 2 * sum) >> 2;
+    if (kink) {
+        int32_t bend = ((int32_t)(last >> 16) * kink) >> 13;
+        const int16_t *c = bend_table[row], *e = bend_table[row + 1];
+        sum = 0;
+        for (unsigned j = 0; j < 16; ++j) {
+            int32_t r = c[j] + ((e[j] - c[j]) * f >> 10);
+            sum += r;
+            w[j] += bend * r >> 4;
+        }
+        int32_t target = (int32_t)((uint32_t)d * (uint32_t)d >> 16) - d + 10923 + BEND_SUM_OFFSET;
+        w[8] += bend * (target - sum) >> 4;
+    }
 }
 
 typedef struct {
@@ -123,10 +126,12 @@ static void describe(voice *c, unsigned shape, uint16_t level)
         c->tri = scaled(lines[shape].tri, level);
         c->saw = scaled(lines[shape].saw, level);
     } else {
-        c->high = scaled(pulses[shape - 4].high, level) << 13;
-        c->low = -(int32_t)mulhi((uint32_t)c->high, pulses[shape - 4].ratio);   /* zero mean */
-        c->step = (c->high - c->low) >> 14;
-        c->half = pulses[shape - 4].half;
+        /* A step of 2 / 16 full scale, 2^14 units of 2^14; levels from it, so edges and levels
+         * agree exactly and high * duty + low * (1 - duty) is zero within a unit. */
+        c->half = pulse_half[shape - 4];
+        c->step = scaled(16384, level);
+        c->high = (int32_t)mulhi((uint32_t)c->step << 14, 0u - 2 * c->half);
+        c->low = c->high - (c->step << 14);
     }
 }
 
@@ -154,37 +159,42 @@ static int32_t smulhi(int32_t a, uint32_t b)
     return a < 0 ? -m : m;
 }
 
-/* One sample of a line shape or a pulse at phase p, with its edge corrections. */
-static inline __attribute__((always_inline)) int32_t line_sample(const voice *c, uint32_t p, uint32_t inc, uint32_t last)
+/* One sample of a line shape or a pulse at phase p into w[8], with the corrections for edges in the
+ * step just taken, of last, spread over w[0..15]. */
+static inline __attribute__((always_inline)) void line_sample(const voice *c, int32_t *w, uint32_t p, uint32_t last)
 {
-    int32_t y = (tri_unit(p) * c->tri + saw_unit(p) * c->saw) >> 3;
-    y += event(0u, p, inc, last, c->saw, -c->tri);
-    if (c->tri)
-        y += event(HALF, p, inc, last, 0, c->tri);
-    return y;
+    w[8] += (tri_unit(p) * c->tri + saw_unit(p) * c->saw) >> 3;
+    if (p < last)
+        event(w, p, last, c->saw, -c->tri);
+    if (c->tri && p - HALF < last)
+        event(w, p - HALF, last, 0, c->tri);
 }
 
-static inline __attribute__((always_inline)) int32_t pulse_sample(const voice *c, uint32_t p, uint32_t inc, uint32_t last)
+static inline __attribute__((always_inline)) void pulse_sample(const voice *c, int32_t *w, uint32_t p, uint32_t last)
 {
-    return (pulse_high(p, c->half) ? c->high : c->low)
-        + event(0u - c->half, p, inc, last, c->step, 0) + event(c->half, p, inc, last, -c->step, 0);
+    w[8] += pulse_high(p, c->half) ? c->high : c->low;
+    if (p + c->half < last)
+        event(w, p + c->half, last, c->step, 0);
+    if (p - c->half < last)
+        event(w, p - c->half, last, -c->step, 0);
 }
 
-/* One voice over n samples into out, from its phase and previous step. Its step is modulated by
- * octaves[i] where octaves is given and nonzero; source, when given, receives oscillator 3's own
- * modulation from each sample's phase before the step (CONTROL feeding it when control is set). */
+/* One voice over n samples into w (sample i's own value at w[i + 8]), from its phase and previous
+ * step. Its step is modulated by octaves[i] where octaves is given and nonzero; source, when
+ * given, records oscillator 3's own modulation from each sample's phase before the step (CONTROL
+ * feeding it back when control is set). */
 static void run(const voice *c, uint32_t *phase, uint32_t *previous, uint32_t step, int32_t *octaves,
-                const voice *source, uint32_t depth, int control, int32_t *out, unsigned n)
+                const voice *source, uint32_t depth, int control, int32_t *w, unsigned n)
 {
     uint32_t p = *phase, last = *previous;
     if (!octaves) {
         /* Unmodulated: a fixed step, so a loop per shape class. */
         if (c->shape < 4)
             for (unsigned i = 0; i < n; ++i, p += step, last = step)
-                out[i] += line_sample(c, p, step, last);
+                line_sample(c, w + i, p, last);
         else
             for (unsigned i = 0; i < n; ++i, p += step, last = step)
-                out[i] += pulse_sample(c, p, step, last);
+                pulse_sample(c, w + i, p, last);
         *phase = p;
         *previous = last;
         return;
@@ -205,7 +215,10 @@ static void run(const voice *c, uint32_t *phase, uint32_t *previous, uint32_t st
             oct = octaves[i];
         }
         uint32_t inc = oct ? modulate(step, oct) : step;
-        out[i] += c->shape < 4 ? line_sample(c, p, inc, last) : pulse_sample(c, p, inc, last);
+        if (c->shape < 4)
+            line_sample(c, w + i, p, last);
+        else
+            pulse_sample(c, w + i, p, last);
         p += inc;
         last = inc;
     }
@@ -219,6 +232,8 @@ void modeldigi_osc_init(modeldigi_osc_state *state)
         state->phase[v] = v * 0x55555555u;   /* 0, 1/3 and 2/3 of a cycle */
         state->last[v] = 0;
     }
+    for (unsigned k = 0; k < 15; ++k)
+        state->tail[k] = 0;
 }
 
 void modeldigi_osc_render(modeldigi_osc_state *state, const modeldigi_osc_params *params,
@@ -234,14 +249,20 @@ void modeldigi_osc_render(modeldigi_osc_state *state, const modeldigi_osc_params
     int modulated = params->modulation_enabled && depth;
     for (size_t done = 0; done < frames;) {
         unsigned n = frames - done < 32 ? (unsigned)(frames - done) : 32;
-        int32_t *out = output + done, octaves[32];
-        for (unsigned i = 0; i < n; ++i)
-            out[i] = 0;
+        int32_t w[32 + 15], octaves[32];   /* w[k]: sample k - 8 of this block */
+        for (unsigned k = 0; k < 15; ++k)
+            w[k] = state->tail[k];
+        for (unsigned k = 15; k < n + 15; ++k)
+            w[k] = 0;
         /* Oscillator 3 first: its phases set the block's modulation. */
         run(&c[2], &state->phase[2], &state->last[2], step[2], modulated ? octaves : 0, modulated ? &c[2] : 0, depth,
-            params->osc3_control, out, n);
+            params->osc3_control, w, n);
         for (unsigned v = 0; v < 2; ++v)
-            run(&c[v], &state->phase[v], &state->last[v], step[v], modulated ? octaves : 0, 0, 0, 0, out, n);
+            run(&c[v], &state->phase[v], &state->last[v], step[v], modulated ? octaves : 0, 0, 0, 0, w, n);
+        for (unsigned i = 0; i < n; ++i)
+            output[done + i] = w[i];
+        for (unsigned k = 0; k < 15; ++k)
+            state->tail[k] = w[n + k];
         done += n;
     }
 }

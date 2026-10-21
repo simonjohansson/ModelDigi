@@ -19,11 +19,12 @@ typedef struct {
 typedef struct {
     uint32_t phase[3]; /* Q0.32 cycles */
     uint32_t last[3];  /* each voice's previous step, for its edge corrections */
+    int32_t tail[15];  /* the next samples' pending output and corrections */
 } modeldigi_osc_state;
 
 /* Initializes persistent state. */
 void modeldigi_osc_init(modeldigi_osc_state *state);
-/* 48 kHz mono Q31 with fixed 1/16 bank gain; no firmware dependencies.
+/* 48 kHz mono Q31 with fixed 1/16 bank gain, 8 samples late; no firmware dependencies.
  * Output may be NULL for zero frames, which changes nothing. State/params
  * must be valid. Parameters are constant per call. Frequencies clamp to the
  * bounds above, invalid shapes become triangle. */
