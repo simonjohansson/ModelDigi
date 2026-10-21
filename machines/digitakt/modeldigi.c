@@ -19,24 +19,38 @@ void modeldigi_digitakt_render(int32_t *blocks)
 {
     static modeldigi_osc_state banks[8];
     static uint8_t active[8];
+    /* Decoding costs about 2% of the device's render period, so it reruns only when a track's
+     * values or note change. */
+    static struct {
+        int16_t values[MD_VALUES];
+        int32_t note;
+        modeldigi_osc_params params;
+    } decoded[8];
     for (int track = 0; track < 8; track++) {
         if (fw_render_machine[track] != MODELDIGI_ID) {
             active[track] = 0;
             continue;
         }
+        int32_t note = fw_voice_note[track];
+        int changed = !active[track] || note != decoded[track].note;
         if (!active[track]) {
             modeldigi_osc_init(&banks[track]);
             active[track] = 1;
         }
-        int16_t values[MD_VALUES];
-        modeldigi_osc_params params;
-        for (int k = 0; k < MD_VALUES; ++k)
-            values[k] = (int16_t)cm_src_value(track, k);
-        modeldigi_decode(values, fw_voice_note[track], &params);
-        /* shortcut: one audible oscillator for the measured device trial; enable the bank after qualification. */
-        params.level[1] = params.level[2] = 0;
-        params.modulation_enabled = false;
-        modeldigi_osc_render(&banks[track], &params, &blocks[32 * track], 32);
+        for (int k = 0; k < MD_VALUES; ++k) {
+            int16_t value = (int16_t)cm_src_value(track, k);
+            changed |= value != decoded[track].values[k];
+            decoded[track].values[k] = value;
+        }
+        modeldigi_osc_params *params = &decoded[track].params;
+        if (changed) {
+            decoded[track].note = note;
+            modeldigi_decode(decoded[track].values, note, params);
+            /* shortcut: one audible oscillator for the measured device trial; enable the bank after qualification. */
+            params->level[1] = params->level[2] = 0;
+            params->modulation_enabled = false;
+        }
+        modeldigi_osc_render(&banks[track], params, &blocks[32 * track], 32);
     }
 }
 
