@@ -123,12 +123,52 @@ static void bounds(void)
     assert(!memcmp(ox, oy, sizeof ox));
 }
 
+/* One octave of square modulation doubles oscillators 1 and 2 while oscillator 3's audio is low,
+ * and oscillator 3 itself only with CONTROL; muting oscillator 3 keeps the modulation. */
+static void modulation(void)
+{
+    for (int control = 0; control < 2; ++control) {
+        modeldigi_osc_params p = bank(3);
+        p.waveform[2] = 4;
+        p.frequency_q16_16[2] = 3u * 65536;
+        p.level[2] = 0;
+        p.modulation_enabled = true;
+        p.osc3_control = control;
+        p.modulation_depth_q16_16 = 65536;
+        modeldigi_osc_params plain = p;
+        plain.modulation_enabled = false;
+        modeldigi_osc_state s, u;
+        int32_t out[1];
+        modeldigi_osc_init(&u);
+        modeldigi_osc_render(&u, &plain, out, 1);
+        uint32_t base[3] = { u.phase[0], u.phase[1] - 0x55555555u, u.phase[2] - 0xaaaaaaaau };
+        modeldigi_osc_init(&s);
+        unsigned low = 0, high = 0;
+        for (unsigned i = 0; i < 48000; ++i) {
+            modeldigi_osc_state before = s;
+            /* Square: high for 49% of the cycle centred on phase 0. */
+            int is_high = before.phase[2] + 0x3eb851ecu < 2 * 0x3eb851ecu;
+            modeldigi_osc_render(&s, &p, out, 1);
+            uint32_t d[3] = { s.phase[0] - before.phase[0], s.phase[1] - before.phase[1], s.phase[2] - before.phase[2] };
+            uint32_t k = is_high ? 1 : 2;
+            assert(d[0] == base[0] * k || d[0] == base[0] * k + 1 || d[0] == base[0] * k - 1);
+            assert(d[1] == base[1] * k || d[1] == base[1] * k + 1 || d[1] == base[1] * k - 1);
+            uint32_t k3 = control ? k : 1;
+            assert(d[2] == base[2] * k3 || d[2] == base[2] * k3 + 1 || d[2] == base[2] * k3 - 1);
+            low += !is_high;
+            high += is_high;
+        }
+        assert(low > 1000 && high > 1000);
+    }
+}
+
 int main(void)
 {
     splitting();
     mixing();
     pitch();
     bounds();
-    puts("PASS: naive bank split/mix/mute/pitch/bounds");
+    modulation();
+    puts("PASS: bank split/mix/mute/pitch/bounds/modulation");
     return 0;
 }

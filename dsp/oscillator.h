@@ -18,6 +18,7 @@ typedef struct {
 /* Private layout: not a sound format or a stable ABI. */
 typedef struct {
     uint32_t phase[3]; /* Q0.32 cycles */
+    uint32_t last[3];  /* each voice's previous step, for its edge corrections */
 } modeldigi_osc_state;
 
 /* Initializes persistent state. */
@@ -25,8 +26,7 @@ void modeldigi_osc_init(modeldigi_osc_state *state);
 /* 48 kHz mono Q31 with fixed 1/16 bank gain; no firmware dependencies.
  * Output may be NULL for zero frames, which changes nothing. State/params
  * must be valid. Parameters are constant per call. Frequencies clamp to the
- * bounds above, invalid shapes become triangle. Modulation is not implemented:
- * its parameters are ignored. */
+ * bounds above, invalid shapes become triangle. */
 void modeldigi_osc_render(modeldigi_osc_state *state,
                          const modeldigi_osc_params *params,
                          int32_t *output, size_t frames);
