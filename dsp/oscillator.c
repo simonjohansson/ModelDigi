@@ -550,8 +550,8 @@ static void __attribute__((noinline)) run_plain(voice_run *run, const voice_line
     *run = r;
 }
 
-/* ColdFire builds run a modulated voice's sub-samples in hand-written code, the C loop in run_voice
- * exactly: at each factor change modulate's increment and advance's rate-change residual, then
+/* ColdFire runs modulated voices and additive fixed-rate pulses in assembly, matching C:
+ * at each factor change modulate's increment and advance's rate-change residual, then
  * steady's step with every running value in a register. A sub-sample that crosses a pulse edge, or
  * takes a line's phase into the other half of the cycle, goes through steady itself: increments stay
  * below half a cycle, so that is the phase's overflow at the knee or carry at the reset. */
@@ -912,6 +912,8 @@ __asm__(
     ".Lv_pnext:\n"
     "	cmpa.l	%a4,%a3\n"
     "	jeq	.Lv_done\n"
+    "	move.l	%a2,%d0\n"            /* null: an unmodulated pulse, fixed increment */
+    "	jeq	.Lv_pulse\n"
     "	addq.l	#8,%a2\n"
     "	move.l	(%a2),%d0\n"
     "	cmp.l	-8(%a2),%d0\n"
@@ -1509,19 +1511,19 @@ static void run_voice(struct modeldigi_osc_voice *o, const voice_lines *d, uint6
     }
     uint64_t inc = mod && mod[0].t ? modulate(step, mod[0], lo, hi) : step;
     begin(o, &r, d, inc, fresh);
-    if (!mod) {
-        run_plain(&r, d, inc, mix, m, first);
-        finish(o, &r);
-        return;
-    }
 #ifdef VOICE_ASM
-    if (!first) {
+    if (!first && (mod || d->shape >= 4)) {
         voice_job j = { step, lo, hi, inc, &r, d, mod, mix, m, { 0 } };
         modeldigi_voice_run(&j);
         finish(o, &r);
         return;
     }
 #endif
+    if (!mod) {
+        run_plain(&r, d, inc, mix, m, first);
+        finish(o, &r);
+        return;
+    }
     for (unsigned i = 0; i < m; ++i) {
         int32_t out;
         if (!i || changed(mod[i], mod[i - 1])) {

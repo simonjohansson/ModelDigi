@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "../dsp/oscillator.h"
+#include "pulse_routes.h"
 
 static modeldigi_osc_params defaults(void)
 {
@@ -244,6 +245,7 @@ static void carrier_phase_does_not_change_pitch(void)
 
 int main(void)
 {
+    assert(pulse_routes());
     workspace(); splitting(); continuity(); bounds(); exact_controls(); bank_sum_and_pulse_edges(); modulation_routing(); carrier_phase_does_not_change_pitch();
     return 0;
 }

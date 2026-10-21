@@ -182,7 +182,7 @@ def main():
         dependency_pins=cost.run('git', 'submodule', 'status').splitlines(),
         inputs={name: hashlib.sha256((cost.ROOT / name).read_bytes()).hexdigest()
                 for name in ('dsp/oscillator.c', 'dsp/oscillator.h', 'tools/cost/driver.c',
-                             'tools/cost/cost.ld', 'tools/cost/measure.py', 'tools/cost/profile.py',
+                             'tools/cost/cost.ld', 'tools/cost/measure.py', 'tools/cost/profile.py', 'tests/pulse_routes.h',
                              'tools/check_oscillators.py', 'tests/reference/oscillator-targets-v1.json',
                              'tests/reference/modulation-source-phases-v1.json')},
         timing_sha256=hashlib.sha256((Path(sys.path[0]) / 'emu/cftiming.py').read_bytes()).hexdigest())

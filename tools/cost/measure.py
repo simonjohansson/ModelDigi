@@ -69,6 +69,8 @@ def measure(image, symbols, blocks):
         m.uc.emu_start(symbols[name], STOP)
         return clock.cycles - start
 
+    call('cost_verify_pulses')
+    assert m.uc.reg_read(UC_M68K_REG_D0) == 1, 'pulse routing changed samples or persistent state'
     rows = []
     for index, name in enumerate(SCENARIOS):
         call('cost_setup', index)
@@ -93,7 +95,7 @@ def main():
     for factor in args.factors:
         image, symbols, helpers = build(factor, args.out / f'f{factor}')
         rows = measure(image, symbols, args.blocks)
-        report['factors'].append(dict(factor=factor, helpers=helpers, scenarios=rows))
+        report['factors'].append(dict(factor=factor, helpers=helpers, pulse_routes_verified=True, scenarios=rows))
         worst = max(r['worst'] for r in rows)
         print(f'\n{factor}x: worst {worst} cycles/block ({worst / 32:.0f}/sample), '
               f'{worst / BUDGET:.0%} of the one-instance budget; 64-bit helpers: {", ".join(helpers) or "none"}')

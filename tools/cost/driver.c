@@ -1,6 +1,9 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* ColdFire cost driver: fixed scenarios for one oscillator bank, rendered 32 frames at a time. */
 #include "../../dsp/oscillator.h"
+#include "../../tests/pulse_routes.h"
+
+int cost_verify_pulses(void) { return pulse_routes(); }
 
 modeldigi_osc_state cost_state;
 modeldigi_osc_params cost_params;

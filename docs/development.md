@@ -184,6 +184,16 @@ directory and never replaces the committed one automatically. Missing or
 changed evidence fails; the portable tests remain usable without it. Complete-path bank RMS is not a core mixer target because
 the recordings do not isolate mixer transfer or match free-running phases.
 
+The isolated cost command also checks fixed-rate pulse routing before timing:
+additive voices must match the first voice's C loop in samples, oscillator state
+and decimator state across short blocks, edges, levels and parameter changes.
+Host tests run the same fixture; the cost tool executes its ColdFire assembly
+paths. This is a regression check of the actual engine, not another oscillator
+model or a replacement for frozen fidelity targets. Compare every cost scenario
+against the same driver and block count; an improvement in one scenario may
+cost time elsewhere. Isolated zero-wait cycles do not qualify full-firmware or
+physical-device headroom.
+
 ## Retained device recordings
 
 Analyse a retained oscillator 1 USB capture without connecting to hardware:
