@@ -93,6 +93,36 @@ def main():
         assert uc.mem_read(sound() + 126, 1) == bytes([42])
         screen('osc-defaults')
         other = bytes(uc.mem_read(sound(1), 162))
+        # Native fine stepping must take several detents to cross a range position.
+        range_turns = {}
+        for encoder, cc, slot in (('A',16,17), ('C',18,19), ('F',21,22)):
+            send([0xb0, cc, 3])
+            unchanged = stored()
+            trace = [unchanged[slot]]
+            for _ in range(8):
+                session.turn(session.encoder(encoder), 1, after_ms=120)
+                assert not session.halted, session.halted
+                trace.append(stored()[slot])
+            assert all(0 <= b - a < 256 for a, b in zip(trace, trace[1:])), trace
+            assert 3 << 8 < trace[-1] < 5 << 8, trace
+            assert (trace[2] + 128) >> 8 == 3, trace
+            backwards = [trace[-1]]
+            for _ in range(8):
+                session.turn(session.encoder(encoder), -1, after_ms=120)
+                assert not session.halted, session.halted
+                backwards.append(stored()[slot])
+            assert backwards[-1] < backwards[0], backwards
+            for value, direction in ((0,-1), (5,1)):
+                send([0xb0, cc, value])
+                session.turn(session.encoder(encoder), direction * 8, after_ms=200)
+                assert not session.halted, session.halted
+                assert stored()[slot] == value << 8
+            changed = stored(); changed[slot] = unchanged[slot]
+            assert changed == unchanged, (encoder, unchanged, changed)
+            assert bytes(uc.mem_read(sound(1), 162)) == other
+            range_turns[encoder] = dict(forward=trace, backward=backwards)
+        report['range_encoder_turns_8_8'] = range_turns
+        report['checks'].append('native range encoders require multiple detents, reverse and clamp independently')
 
         # Lookup ABI and native fallback, independent of the UART receive path.
         for track, machine, cc, expected in ((0,42,24,164),(7,42,30,170),(0,42,16,132),

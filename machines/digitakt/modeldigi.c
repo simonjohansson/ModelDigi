@@ -4,9 +4,9 @@
 #include "graphics.h"
 
 #define MODELDIGI_ID 42
-/* SLICE's BR knob: a plain dial that steps one unit a detent. TUNE's and LEV's turns step in fractions
- * and PLAY's graphic shows play modes, so every value borrows BR's (checked in the emulator). */
+/* BR steps in whole units; the range selectors borrow TUNE's native fine stepping. */
 #define LOOK_BR      0x86
+#define LOOK_TUNE    0x84
 
 int32_t modeldigi_midi_cc_parameter(int32_t track, int32_t machine, int32_t cc)
 {
@@ -69,6 +69,10 @@ static int32_t frq3_text(char *buf, int32_t value, int32_t ctx, int32_t machine)
       .min = 0, .max = (max_) << 8, .def = (def_) << 8, .fmt = fmt_, .draw = draw_ }
 #define SELECTOR(label, long_name, def_, fmt_, draw_) \
     KNOB(label, long_name, 5, def_, CM_DRAW, fmt_, draw_)
+#define RANGE(label, long_name) \
+    { .name = label, .lname = long_name, .look = LOOK_TUNE, \
+      .flags = CM_RANGE | CM_DEFAULT | CM_DRAW, .min = 0, .max = 5 << 8, .def = 3 << 8, \
+      .fmt = range_text, .draw = modeldigi_draw_range }
 
 static const struct cm_src_page pages[] = {
     { .title = "OSC 1/2", .parameter = { MD_RNG1, MD_WAV1, MD_RNG2, MD_FRQ2, MD_WAV2, MD_RNG3, MD_FRQ3, MD_WAV3 } },
@@ -81,12 +85,12 @@ static const struct cm_ui32 modeldigi_page = {
         .page_from = 3,
         .group = "ModelDigi",
         .knob = {
-            SELECTOR("RNG1", "Osc 1 Range", 3, range_text, modeldigi_draw_range),
+            RANGE("RNG1", "Osc 1 Range"),
             SELECTOR("WAV1", "Osc 1 Wave", 2, wave12_text, modeldigi_draw_wave12),
-            SELECTOR("RNG2", "Osc 2 Range", 3, range_text, modeldigi_draw_range),
+            RANGE("RNG2", "Osc 2 Range"),
             KNOB("FRQ2", "Osc 2 Frequency", 127, 64, CM_NOT_SAMPLE, frq2_text, 0),
             SELECTOR("WAV2", "Osc 2 Wave", 2, wave12_text, modeldigi_draw_wave12),
-            SELECTOR("RNG3", "Osc 3 Range", 3, range_text, modeldigi_draw_range),
+            RANGE("RNG3", "Osc 3 Range"),
             KNOB("FRQ3", "Osc 3 Frequency", 127, 64, 0, frq3_text, 0),
             SELECTOR("WAV3", "Osc 3 Wave", 2, wave3_text, modeldigi_draw_wave3),
         },
