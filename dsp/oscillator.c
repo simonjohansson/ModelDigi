@@ -121,8 +121,9 @@ typedef struct {
  * of step_q14 * 2^14 output units and its slope change of 8 * kink Q16 units a cycle, (last >> 16)
  * * kink output units a sample, to the TAPS samples w[0..TAPS - 1] around it, the sample after it
  * at w[EDGE_HALF]. */
-static inline __attribute__((always_inline)) void event(int32_t *w, uint32_t behind, uint32_t last, divisor *q,
-                                                      int32_t step_q14, int32_t kink)
+/* Out of line: one copy of the tap loops serves every edge, which the instruction cache rewards. */
+static __attribute__((noinline)) void event(int32_t *w, uint32_t behind, uint32_t last, divisor *q,
+                                            int32_t step_q14, int32_t kink)
 {
     if (q->inc != last) {
         q->inc = last;
