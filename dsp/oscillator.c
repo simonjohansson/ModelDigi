@@ -245,10 +245,11 @@ HOT int crossed(uint32_t at, uint32_t old, uint32_t span)
     return at - old - 1 < span;
 }
 
-/* One voice's running values, kept in registers across a chunk. */
+/* One voice's running values, kept in registers across a chunk. slope: a modulated line's value
+ * step per sub-sample. */
 typedef struct {
     uint64_t phase, last;
-    int32_t previous, held;
+    int32_t previous, held, slope;
 } voice_run;
 
 /* Advance one sub-sample by inc, the previous sub-sample's increment; returns the held-back sample. */
@@ -271,6 +272,32 @@ HOT int32_t steady(voice_run *r, const voice_lines *d, uint64_t inc)
     int32_t output = r->previous + fix[0];
     r->previous = pure + fix[1];
     r->held = pure;
+    r->phase = phase;
+    r->last = inc;
+    return output;
+}
+
+/* A modulated line's value step for its increment, after a sub-sample computed directly: inside a
+ * frame the increment holds, so the line's value moves by the same amount each sub-sample. */
+HOT void aim(voice_run *r, const voice_lines *d)
+{
+    if (d->shape < 4)
+        r->slope = line(0, d->b[(uint32_t)(r->phase >> 63)], (uint32_t)(r->last >> 32));
+}
+
+/* A modulated sub-sample inside a frame at the held increment: a line's value is the last plus its
+ * slope, unless the phase changes half; that sub-sample, and pulses, are steady's. Frames start
+ * from a direct value, so a render's split does not change the output. */
+HOT int32_t glide(voice_run *r, const voice_lines *d, uint64_t inc)
+{
+    uint64_t phase = r->phase + inc;
+    if (d->shape >= 4 || ((uint32_t)(phase >> 32) ^ (uint32_t)(r->phase >> 32)) >> 31) {
+        int32_t out = steady(r, d, inc);
+        aim(r, d);
+        return out;
+    }
+    int32_t output = r->previous;
+    r->previous = r->held = r->held + r->slope;
     r->phase = phase;
     r->last = inc;
     return output;
@@ -530,6 +557,8 @@ static void __attribute__((noinline)) run_plain(voice_run *run, const voice_line
  * below half a cycle, so that is the phase's overflow at the knee or carry at the reset. */
 #if defined(__mcoldfire__) && !defined(MODELDIGI_NO_ASM)
 #define VOICE_ASM 1
+#define MODELDIGI_STR2(x) #x
+#define MODELDIGI_STR(x) MODELDIGI_STR2(x)
 typedef struct {
     uint64_t step, lo, hi, inc;   /* the voice's unmodulated increment, bounds, the first increment */
     voice_run *r;
@@ -540,7 +569,7 @@ typedef struct {
     uint32_t scratch[7];
 } voice_job;
 /* The loop reads these structures by these offsets. */
-typedef char voice_job_layout[offsetof(voice_job, r) == 32 && offsetof(voice_job, m) == 48 &&
+typedef char voice_job_layout[offsetof(voice_run, slope) == 24 && offsetof(voice_job, r) == 32 && offsetof(voice_job, m) == 48 &&
                               offsetof(voice_job, scratch) == 52 && offsetof(voice_run, last) == 8 &&
                               offsetof(voice_run, previous) == 16 && offsetof(voice_run, held) == 20 &&
                               offsetof(voice_lines, a) == 8 && offsetof(voice_lines, b) == 16 &&
@@ -548,11 +577,13 @@ typedef char voice_job_layout[offsetof(voice_job, r) == 32 && offsetof(voice_job
                               offsetof(voice_lines, low) == 36 && offsetof(voice_lines, rise) == 40 &&
                               offsetof(voice_lines, fall) == 44 && sizeof(octave_factor) == 8 ? 1 : -1];
 
-/* An event sub-sample for the loop: steady's own step. */
+/* An event sub-sample for the loops: steady's own step, then a line's slope. */
 int32_t __attribute__((noinline)) modeldigi_event_step(voice_run *r, const voice_lines *d, uint32_t high,
                                                        uint32_t low)
 {
-    return steady(r, d, (uint64_t)high << 32 | low);
+    int32_t out = steady(r, d, (uint64_t)high << 32 | low);
+    aim(r, d);
+    return out;
 }
 
 void modeldigi_voice_run(voice_job *j);
@@ -564,9 +595,9 @@ __asm__(
     "	.even\n"
     "	.type	modeldigi_voice_run, @function\n"
     "modeldigi_voice_run:\n"
-    "	lea	-56(%sp),%sp\n"
+    "	lea	-68(%sp),%sp\n"
     "	movem.l	%d2-%d7/%a2-%a6,(%sp)\n"
-    "	move.l	60(%sp),%a5\n"
+    "	move.l	72(%sp),%a5\n"
     "	move.l	32(%a5),%a6\n"
     "	move.l	36(%a5),%a0\n"
     "	move.l	40(%a5),%a2\n"
@@ -580,6 +611,8 @@ __asm__(
     "	move.l	8(%a6),%d4\n"
     "	move.l	12(%a6),%a1\n"
     "	move.l	16(%a6),%d6\n"
+    "	move.l	20(%a6),56(%sp)\n"            /* held and slope, as C left them */
+    "	move.l	24(%a6),60(%sp)\n"
     "	moveq	#4,%d5\n"
     "	cmp.l	(%a0),%d5\n"
     "	jls	.Lv_noline1\n"
@@ -597,6 +630,8 @@ __asm__(
     "	mvz.w	%d5,%d5\n"
     "	move.l	%d5,48(%sp)\n"
     ".Lv_noline1:\n"
+    "	moveq	#" MODELDIGI_STR(MODELDIGI_OVERSAMPLE) ",%d0\n"
+    "	move.l	%d0,64(%sp)\n"           /* sub-sample 0 starts a frame */
     "	move.l	24(%a5),%d0\n"            /* the first sub-sample's increment is given */
     "	move.l	28(%a5),%d1\n"
     "	jra	.Lv_given\n"
@@ -772,8 +807,8 @@ __asm__(
     "	moveq	#4,%d5\n"
     "	cmp.l	(%a0),%d5\n"
     "	jls	.Lv_pulse\n"
-    /* A line's sub-sample. */
-    ".Lv_line:\n"
+    /* A line's sub-sample computed directly: a frame start or a factor change. */
+    ".Lv_ldirect:\n"
     "	add.l	%a1,%d3\n"
     "	addx.l	%d4,%d2\n"
     "	jvs	.Lv_event\n"               /* into the other half: the knee (V) */
@@ -797,16 +832,57 @@ __asm__(
     "	add.l	%d7,%d1\n"
     "	add.l	%d6,(%a3)+\n"
     "	move.l	%d1,%d6\n"
+    "	move.l	%d1,56(%sp)\n"            /* held */
+    "	move.l	%d4,%d7\n"                 /* aim: the slope, line(0, b, span) */
+    "	clr.w	%d7\n"
+    "	swap	%d7\n"
+    "	move.l	48(%sp),%d5\n"
+    "	mulu.l	%d7,%d5\n"
+    "	clr.w	%d5\n"
+    "	swap	%d5\n"
+    "	muls.l	44(%sp),%d7\n"
+    "	add.l	%d5,%d7\n"
+    "	mvz.w	%d4,%d5\n"
+    "	muls.l	44(%sp),%d5\n"
+    "	swap	%d5\n"
+    "	ext.l	%d5\n"
+    "	add.l	%d5,%d7\n"
+    "	move.l	%d7,60(%sp)\n"
+    "	jra	.Lv_lnext\n"
+    /* Inside a frame: the last value plus the slope. */
+    ".Lv_lglide:\n"
+    "	add.l	%a1,%d3\n"
+    "	addx.l	%d4,%d2\n"
+    "	jvs	.Lv_event\n"
+    "	jcs	.Lv_event\n"
+    "	move.l	56(%sp),%d1\n"
+    "	add.l	60(%sp),%d1\n"
+    "	move.l	%d1,56(%sp)\n"
+    "	add.l	%d6,(%a3)+\n"
+    "	move.l	%d1,%d6\n"
+    ".Lv_lnext:\n"
     "	cmpa.l	%a4,%a3\n"
     "	jeq	.Lv_done\n"
     "	addq.l	#8,%a2\n"
+    "	subq.l	#1,64(%sp)\n"
+    "	jeq	.Lv_lframe\n"
     "	move.l	(%a2),%d0\n"
     "	cmp.l	-8(%a2),%d0\n"
     "	jne	.Lv_change\n"
     "	move.l	4(%a2),%d0\n"
     "	cmp.l	-4(%a2),%d0\n"
     "	jne	.Lv_change\n"
-    "	jra	.Lv_line\n"
+    "	jra	.Lv_lglide\n"
+    ".Lv_lframe:\n"
+    "	moveq	#" MODELDIGI_STR(MODELDIGI_OVERSAMPLE) ",%d0\n"
+    "	move.l	%d0,64(%sp)\n"
+    "	move.l	(%a2),%d0\n"
+    "	cmp.l	-8(%a2),%d0\n"
+    "	jne	.Lv_change\n"
+    "	move.l	4(%a2),%d0\n"
+    "	cmp.l	-4(%a2),%d0\n"
+    "	jne	.Lv_change\n"
+    "	jra	.Lv_ldirect\n"
     /* A pulse's sub-sample. */
     ".Lv_pulse:\n"
     "	move.l	%d2,%d7\n"
@@ -833,6 +909,7 @@ __asm__(
     ".Lv_held:\n"
     "	add.l	%d6,(%a3)+\n"
     "	move.l	%d1,%d6\n"
+    ".Lv_pnext:\n"
     "	cmpa.l	%a4,%a3\n"
     "	jeq	.Lv_done\n"
     "	addq.l	#8,%a2\n"
@@ -865,6 +942,8 @@ __asm__(
     "	move.l	16(%a6),%d6\n"
     "	move.l	36(%a5),%a0\n"
     "	move.l	12(%a6),%a1\n"
+    "	move.l	20(%a6),56(%sp)\n"
+    "	move.l	24(%a6),60(%sp)\n"
     "	moveq	#4,%d5\n"
     "	cmp.l	(%a0),%d5\n"
     "	jls	.Lv_noline2\n"
@@ -882,19 +961,10 @@ __asm__(
     "	mvz.w	%d5,%d5\n"
     "	move.l	%d5,48(%sp)\n"
     ".Lv_noline2:\n"
-    "	cmpa.l	%a4,%a3\n"
-    "	jeq	.Lv_done\n"
-    "	addq.l	#8,%a2\n"
-    "	move.l	(%a2),%d0\n"
-    "	cmp.l	-8(%a2),%d0\n"
-    "	jne	.Lv_change\n"
-    "	move.l	4(%a2),%d0\n"
-    "	cmp.l	-4(%a2),%d0\n"
-    "	jne	.Lv_change\n"
     "	moveq	#4,%d5\n"
     "	cmp.l	(%a0),%d5\n"
-    "	jls	.Lv_pulse\n"
-    "	jra	.Lv_line\n"
+    "	jls	.Lv_pnext\n"
+    "	jra	.Lv_lnext\n"
     ".Lv_done:\n"
     "	move.l	%d2,(%a6)\n"
     "	move.l	%d3,4(%a6)\n"
@@ -906,7 +976,7 @@ __asm__(
     "	move.l	%d6,20(%a6)\n"             /* held: the last value, unless steady took it */
     ".Lv_out:\n"
     "	movem.l	(%sp),%d2-%d7/%a2-%a6\n"
-    "	lea	56(%sp),%sp\n"
+    "	lea	68(%sp),%sp\n"
     "	rts\n"
     "	.size	modeldigi_voice_run, .-modeldigi_voice_run\n"
     "	.popsection\n");
@@ -936,9 +1006,9 @@ __asm__(
     "	.even\n"
     "	.type	modeldigi_source_run, @function\n"
     "modeldigi_source_run:\n"
-    "	lea	-56(%sp),%sp\n"
+    "	lea	-68(%sp),%sp\n"
     "	movem.l	%d2-%d7/%a2-%a6,(%sp)\n"
-    "	move.l	60(%sp),%a5\n"
+    "	move.l	72(%sp),%a5\n"
     "	move.l	32(%a5),%a6\n"
     "	move.l	36(%a5),%a0\n"
     "	move.l	40(%a5),%a2\n"
@@ -952,6 +1022,8 @@ __asm__(
     "	move.l	8(%a6),%d4\n"
     "	move.l	12(%a6),%a1\n"
     "	move.l	16(%a6),%d6\n"
+    "	move.l	20(%a6),56(%sp)\n"            /* held and slope, as C left them */
+    "	move.l	24(%a6),60(%sp)\n"
     "	moveq	#4,%d5\n"
     "	cmp.l	(%a0),%d5\n"
     "	jls	.Ls_noline1\n"
@@ -983,7 +1055,7 @@ __asm__(
     "	jne	.Ls_refresh\n"
     "	move.l	100(%a5),(%a2)+\n"        /* the factor held */
     "	move.l	104(%a5),(%a2)+\n"
-    "	jra	.Ls_lstep\n"
+    "	jra	.Ls_lglide\n"
     ".Ls_lframe:\n"
     "	move.l	124(%a5),128(%a5)\n"
     "	move.l	%d2,%d0\n"
@@ -1254,7 +1326,7 @@ __asm__(
     "	moveq	#4,%d5\n"
     "	cmp.l	(%a0),%d5\n"
     "	jls	.Ls_pstep\n"
-    ".Ls_lstep:\n"
+    ".Ls_ldirect:\n"
     "	add.l	%a1,%d3\n"
     "	addx.l	%d4,%d2\n"
     "	jvs	.Ls_event\n"               /* into the other half: the knee (V) */
@@ -1280,6 +1352,36 @@ __asm__(
     "	and.l	116(%a5),%d0\n"
     "	move.l	%d0,(%a3)+\n"
     "	move.l	%d1,%d6\n"
+    "	move.l	%d1,56(%sp)\n"            /* held */
+    "	move.l	%d4,%d7\n"                 /* aim: the slope, line(0, b, span) */
+    "	clr.w	%d7\n"
+    "	swap	%d7\n"
+    "	move.l	48(%sp),%d5\n"
+    "	mulu.l	%d7,%d5\n"
+    "	clr.w	%d5\n"
+    "	swap	%d5\n"
+    "	muls.l	44(%sp),%d7\n"
+    "	add.l	%d5,%d7\n"
+    "	mvz.w	%d4,%d5\n"
+    "	muls.l	44(%sp),%d5\n"
+    "	swap	%d5\n"
+    "	ext.l	%d5\n"
+    "	add.l	%d5,%d7\n"
+    "	move.l	%d7,60(%sp)\n"
+    "	jra	.Ls_lnext\n"
+    ".Ls_lglide:\n"
+    "	add.l	%a1,%d3\n"
+    "	addx.l	%d4,%d2\n"
+    "	jvs	.Ls_event\n"
+    "	jcs	.Ls_event\n"
+    "	move.l	56(%sp),%d1\n"
+    "	add.l	60(%sp),%d1\n"
+    "	move.l	%d1,56(%sp)\n"
+    "	move.l	%d6,%d0\n"
+    "	and.l	116(%a5),%d0\n"
+    "	move.l	%d0,(%a3)+\n"
+    "	move.l	%d1,%d6\n"
+    ".Ls_lnext:\n"
     "	cmpa.l	%a4,%a3\n"
     "	jne	.Ls_ltop\n"
     "	jra	.Ls_done\n"
@@ -1336,6 +1438,8 @@ __asm__(
     "	move.l	16(%a6),%d6\n"
     "	move.l	36(%a5),%a0\n"
     "	move.l	12(%a6),%a1\n"
+    "	move.l	20(%a6),56(%sp)\n"
+    "	move.l	24(%a6),60(%sp)\n"
     "	moveq	#4,%d5\n"
     "	cmp.l	(%a0),%d5\n"
     "	jls	.Ls_noline2\n"
@@ -1370,7 +1474,7 @@ __asm__(
     "	move.l	%d6,20(%a6)\n"
     ".Ls_out:\n"
     "	movem.l	(%sp),%d2-%d7/%a2-%a6\n"
-    "	lea	56(%sp),%sp\n"
+    "	lea	68(%sp),%sp\n"
     "	rts\n"
     "	.size	modeldigi_source_run, .-modeldigi_source_run\n"
     "	.popsection\n");
@@ -1424,8 +1528,12 @@ static void run_voice(struct modeldigi_osc_voice *o, const voice_lines *d, uint6
             if (i)
                 inc = mod[i].t ? modulate(step, mod[i], lo, hi) : step;
             out = advance(&r, d, inc);
+            aim(&r, d);
+        } else if (i % MODELDIGI_OVERSAMPLE == 0) {
+            out = steady(&r, d, inc);   /* each frame starts from a direct value */
+            aim(&r, d);
         } else {
-            out = steady(&r, d, inc);   /* the increment is held with the factor */
+            out = glide(&r, d, inc);   /* the increment is held with the factor */
         }
         mix[i] = first ? out : mix[i] + out;
     }
@@ -1569,7 +1677,13 @@ void modeldigi_osc_render(modeldigi_osc_state *s, const modeldigi_osc_params *p,
                 if (!i)
                     begin(o, &r, &lines[2], inc, fresh[2] || !primed);
                 /* The increment changes only where the factor is refreshed. */
-                int32_t out = refresh ? advance(&r, &lines[2], inc) : steady(&r, &lines[2], inc);
+                int32_t out;
+                if (refresh) {
+                    out = advance(&r, &lines[2], inc);
+                    aim(&r, &lines[2]);
+                } else {
+                    out = glide(&r, &lines[2], inc);
+                }
                 mix[i] = lines[2].silent && !fresh[2] && primed ? 0 : out;
 #ifdef VOICE_ASM
                 /* Sub-sample 0 above, after begin; the rest in the routine. */
