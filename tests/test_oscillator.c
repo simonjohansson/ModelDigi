@@ -98,19 +98,20 @@ static void pitch(void)
     assert(wraps == 440 || wraps == 439);
 }
 
-/* Full-level squares on all three voices stay within 3/16 of full scale; bad shapes are triangles. */
+/* Full-level pulses on all three voices stay within three narrow-pulse highs, 3 * 2 * 0.805 / 16 of full
+ * scale; bad shapes are triangles. */
 static void bounds(void)
 {
     modeldigi_osc_params p = bank(0);
-    p.waveform[0] = p.waveform[1] = p.waveform[2] = 4;
-    p.frequency_q16_16[1] = p.frequency_q16_16[2] = p.frequency_q16_16[0];
+    p.waveform[0] = p.waveform[1] = p.waveform[2] = 6;
+    p.frequency_q16_16[0] = p.frequency_q16_16[1] = p.frequency_q16_16[2] = 1000u * 65536;   /* 48 samples a cycle */
     modeldigi_osc_state s;
-    int32_t out[512];
+    int32_t out[48000];
     modeldigi_osc_init(&s);
-    modeldigi_osc_render(&s, &p, out, 512);
+    modeldigi_osc_render(&s, &p, out, 48000);
     int32_t lo = 0, hi = 0;
-    for (unsigned i = 0; i < 512; ++i) { lo = out[i] < lo ? out[i] : lo; hi = out[i] > hi ? out[i] : hi; }
-    assert(hi <= 3 * (INT32_MAX >> 4) && lo >= 3 * (INT32_MIN >> 4) && hi > 0 && lo < 0);
+    for (unsigned i = 0; i < 48000; ++i) { lo = out[i] < lo ? out[i] : lo; hi = out[i] > hi ? out[i] : hi; }
+    assert(hi <= 3 * 0.805 * 2 / 16 * 2147483648.0 + 3 && hi > 0 && lo < 0);
     modeldigi_osc_params a = bank(0), b = bank(0);
     a.waveform[0] = 0;
     b.waveform[0] = 200;
