@@ -62,8 +62,9 @@ default for a new sound.
 
 ## Oscillator development
 
-The host renderer runs the actual shared C engine. These tasks need no stock
-firmware or private recordings; uv supplies pinned NumPy using mise's Python.
+The host renderer runs the actual shared C engine with Analog off. These tasks
+need no stock firmware or private recordings; uv supplies pinned NumPy using
+mise's Python.
 
 ```sh
 mise run test:oscillators
@@ -99,8 +100,9 @@ reserve in its worst tested case.
 `mise run cost [factor ...]` estimates the ColdFire cost of one bank per
 32-frame block. It compiles the actual engine with the SDK's Digitakt flags,
 links it with a small driver at a fixed address, and times six fixed
-scenarios under digiemu's cycle model, which uses the processor manual's
-timing tables and assumes zero-wait memory. It also reports any 64-bit
+scenarios with Analog off and on in the same image under digiemu's cycle model,
+which uses the processor manual's timing tables and assumes zero-wait memory.
+It also reports any 64-bit
 runtime helper the engine would import. Its nominal stock-render estimate is
 about 100,000 of the 166,700 cycles in each period at 250 MHz, so the tool
 reports against a nominal 50,000 cycles for one instance or 25,000 for each
@@ -108,8 +110,8 @@ of two. These are estimates; the firmware check's timing stage and the device
 remain the authority. The task needs the cross-toolchain and a bootstrapped
 digiemu.
 
-`mise run cost:profile --blocks 24` profiles the same six scenarios, separating setup, the first block, warm-up
-and warm rendering. It attributes
+`mise run cost:profile --blocks 24` profiles the same scenarios in both runtime
+settings, separating setup, the first block, warm-up and warm rendering. It attributes
 cycles to basic blocks and source instructions, including inlined helpers.
 Its checks require debug information to preserve the executable image and
 profiled execution to match every unprofiled call's cycles and output/state.
@@ -118,8 +120,8 @@ The report and debug images stay under ignored `out/profile-<factor>x/`.
 These are isolated engine estimates, not complete-firmware or physical-device timing.
 
 `mise run cost:equivalence` builds the engine for ColdFire with and without
-its hand-written assembly and runs both under digiemu: the six scenarios and
-a set of randomized parameter sets, comparing every output sample and the
+its hand-written assembly and runs both under digiemu: the six scenarios with
+Analog off and on, and a set of randomized parameter sets, comparing every output sample and the
 whole bank state after every block. A copy with one deliberately altered
 instruction must differ, so the comparison is known to detect a change. Run
 it after any change to the engine's assembly or the C it mirrors.

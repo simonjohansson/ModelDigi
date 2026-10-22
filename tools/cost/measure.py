@@ -16,8 +16,9 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 CFLAGS = ['-mcpu=54455', '-O2', '-ffreestanding', '-fno-builtin', '-nostdlib', '-std=c99', '-Wall', '-Werror']
-SCENARIOS = ['one saw', 'three sources', 'slow modulation', 'audio-rate feedback FM', 'high narrow pulses',
-             'saw feedback FM']
+SCENARIOS = [f'{name} (Analog {mode})' for mode in ('off', 'on')
+             for name in ('one saw', 'three sources', 'slow modulation', 'audio-rate feedback FM',
+                          'high narrow pulses', 'saw feedback FM')]
 PERIOD = 166_700        # core cycles per 32-frame block at 250 MHz
 STOCK = 100_000         # historical stock render estimate (digiemu docs/FIRMWARE-CHECK.md)
 BUDGET = int(PERIOD * 0.9) - STOCK   # what a 10% render margin leaves for ModelDigi

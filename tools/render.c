@@ -12,7 +12,7 @@ static void put32(FILE *f, uint32_t n)
 
 int main(int argc, char **argv)
 {
-    modeldigi_osc_params p = {0};
+    modeldigi_osc_params p = { .analog = false };
     modeldigi_osc_state s;
     uint32_t initial_phase[3] = {0};
     bool phase_set[3] = {false};

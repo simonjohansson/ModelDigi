@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
-/* The analog build's declared behaviour; built with MODELDIGI_ANALOG. */
+/* The runtime analog setting's declared behaviour. */
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
@@ -36,6 +36,40 @@ static void splitting(void)
         at += n;
     }
     assert(!memcmp(whole, parts, sizeof whole) && !memcmp(&a, &b, sizeof a));
+}
+
+/* Off freezes drift, ignores its retained state, and resumes its grid when enabled again. */
+static void switching(void)
+{
+    modeldigi_osc_params p = bank();
+    modeldigi_osc_state a;
+    int32_t whole[257], parts[257], plain[257];
+    modeldigi_osc_init(&a);
+    modeldigi_osc_render(&a, &p, whole, 65);
+    modeldigi_osc_state before = a, b = a, clean = a;
+    clean.frame = clean.seed = 0;
+    for (unsigned v = 0; v < 3; ++v)
+        clean.wander[v] = clean.drift[v] = 0;
+    clean.mix_in = clean.mix_residue = clean.dc_in = clean.dc_out = 0;
+    p.analog = false;
+    modeldigi_osc_render(&a, &p, whole, 257);
+    for (unsigned i = 0; i < 257; ++i)
+        modeldigi_osc_render(&b, &p, parts + i, 1);
+    modeldigi_osc_render(&clean, &p, plain, 257);
+    assert(!memcmp(whole, parts, sizeof whole) && !memcmp(&a, &b, sizeof a));
+    assert(!memcmp(whole, plain, sizeof whole));
+    assert(a.frame == before.frame && a.seed == before.seed);
+    assert(!memcmp(a.wander, before.wander, sizeof a.wander));
+    assert(!memcmp(a.drift, before.drift, sizeof a.drift));
+    assert(!a.mix_in && !a.mix_residue && !a.dc_in && !a.dc_out);
+    p.analog = true;
+    modeldigi_osc_render(&a, &p, whole, 31);
+    assert(a.frame == 96 && a.seed == before.seed);
+    drift_step(&before);
+    modeldigi_osc_render(&a, &p, whole, 1);
+    assert(a.frame == 97 && a.seed == before.seed);
+    assert(!memcmp(a.wander, before.wander, sizeof a.wander));
+    assert(!memcmp(a.drift, before.drift, sizeof a.drift));
 }
 
 /* Over five minutes: bounded, about 2 cents RMS, seconds-long correlation, independent oscillators;
@@ -150,9 +184,10 @@ static void dc(void)
 int main(void)
 {
     splitting();
+    switching();
     wander();
     mixer_curve();
     dc();
-    puts("PASS: analog drift split/bounds/rate/independence, mixer curve and DC");
+    puts("PASS: analog drift split/freeze/resume/bounds/rate/independence, mixer curve and DC");
     return 0;
 }
