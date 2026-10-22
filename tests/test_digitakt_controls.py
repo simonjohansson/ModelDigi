@@ -219,6 +219,13 @@ def main():
             assert list(actual[:8] + actual[29:36]) == expected, (value, actual)
             send([0x80, 60, 0])
         report['checks'].append('all 15 stored/live controls and incoming range clamps through native UART')
+        for value in (0, 4, 5, 127):
+            # NRPN 0x80-0x87 address the eight OSC controls through native lookup.
+            for index, maximum in enumerate(maxima[:8]):
+                send([0xb0,99,1,0xb0,98,index,0xb0,6,value])
+                assert source()[index] == min(value, maximum) << 8, (index, value, source())
+            check_working_record()
+        report['checks'].append('OSC NRPN ranges and working version-4 record through native UART')
         assert bytes(uc.mem_read(sound(1),162)) == other
         before = source(); send([0xb1,24,64]); assert source() == before
         send([0xb1,7,118]); assert stored(1)[45] == 118 << 8 and source() == before

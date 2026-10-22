@@ -45,8 +45,8 @@ Level 3. Incoming selectors clamp to 0–5; all other controls use 0–127.
 The three switches flip at 64. Native track channels, auto channel and receive
 settings still apply. A temporary local lookup hook adds the extra CCs only
 for ModelDigi audio tracks; the native lookup handles other machines, MIDI
-tracks, FX and unrelated controllers. A second hook supplies each control's
-declared range to incoming MIDI, matching encoder limits.
+tracks, FX and unrelated controllers. Machine-pages 1.3 supplies each control's
+declared range to incoming CC and NRPN messages, matching encoder limits.
 
 Approved stored meanings:
 

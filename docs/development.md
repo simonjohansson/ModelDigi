@@ -245,18 +245,18 @@ mise run test:firmware:controls --firmware out/Digitakt_ModelDigi.syx --os 1.54 
 
 The output directory must be new. This check boots native firmware, turns
 Analog off through MIDI after selecting ModelDigi, exercises
-CC 16–30 through the emulated DIN receiver, checks stored and live values,
-verifies that frequency edits reach the working saved record, tests unrelated
-lookup fallbacks and captures both pages across selector and
+CC 16–30 and OSC NRPN ranges through the emulated DIN receiver, checks stored
+and live values, verifies that frequency edits reach the working saved record,
+tests unrelated lookup fallbacks and captures both pages across selector and
 switch positions. It preserves the emulator's MIDI semaphore guard and paces
 input to its UART model; it does not establish burst throughput or USB MIDI
 behavior. The check neither builds firmware nor transfers it to a device.
 
-ModelDigi needs machine-pages 1.2.1 or newer, which keeps in-place parameter
-edits packed in the version-4 sound record. Control acceptance must compare
-the actual working saved record with the live sound, in addition to a fresh
-codec round-trip. Keep the exact dependency, image and readback hashes with
-persistence evidence.
+ModelDigi needs machine-pages 1.3 or newer for incoming MIDI ranges; it also
+keeps in-place parameter edits packed in the version-4 sound record. Control
+acceptance must compare the actual working saved record with the live sound,
+in addition to a fresh codec round-trip. Keep the exact dependency, image and
+readback hashes with persistence evidence.
 
 Host tests verify oscillator behavior and adapter isolation, not complete firmware execution.
 SDK lint and firmware packaging verify linking and patch constraints, not
