@@ -40,8 +40,9 @@ the SDK's hash verification and reject unknown firmware.
 | `mise run firmware` | Builds and patches the selected stock OS into `out/Digitakt_ModelDigi.syx`, with the analog character layer. No device transfer. |
 | `mise run emu` | Builds the regular firmware, prepares it in digiemu and opens its panel. Emulator data stays in `.digiemu/`. |
 | `mise run test` | Checks C oscillator state, splitting, bounds and routing, plus Digitakt control decoding, value text, page layout, actual bank output, state lifetime and track isolation. |
+| `mise run release` | Builds, runs host tests and publishes the ModelDigi mod on GitHub. |
 
-The first three tasks dispatch to Digitakt and Digitone. Every Digitone
+The first three tasks and `release` dispatch to Digitakt and Digitone. Every Digitone
 subtask is a successful placeholder with no artifact or panel. Direct
 `:digitakt` and `:digitone` variants are available. `build:deps` builds
 only the dependencies.
@@ -59,6 +60,17 @@ FUNC+SRC to choose it, then SRC to switch between OSC and MIX.
 For clean firmware testing, turn Analog off on the MIX page (or send CC 24
 with value 0). The same firmware supports both settings; Analog is on by
 default for a new sound.
+
+## Releases
+
+Release a clean source revision already reachable from `origin/main`, with the
+intended version in `machines/digitakt/mod.json`; pushing a feature branch alone
+does not satisfy this. The release task builds for OS1.54, runs host tests,
+requires a clean working tree and a revision reachable from `origin/main`, then
+creates `modeldigi-v<version>` on GitHub with the matching
+`modeldigi-<version>*.elemod`. Core, machine-pages and DigiHealth come from
+their own projects. The task needs the local stock firmware, so it runs
+locally. Publishing does not qualify the build on hardware.
 
 ## Oscillator development
 
