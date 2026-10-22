@@ -129,9 +129,9 @@ static void descriptor(void)
 {
     static const uint8_t shown[2][8] = {
         { MD_RNG1, MD_WAV1, MD_RNG2, MD_FRQ2, MD_WAV2, MD_RNG3, MD_FRQ3, MD_WAV3 },
-        { MD_TUNE, MD_CTRL, MD_MOD, MD_DPTH, MD_LEV1, MD_LEV2, MD_LEV3, CM_SRC_BLANK },
+        { MD_ANLG, MD_CTRL, MD_MOD, MD_DPTH, MD_LEV1, MD_LEV2, MD_LEV3, CM_SRC_BLANK },
     };
-    static const int16_t def[MD_VALUES] = { 3, 2, 3, 64, 2, 3, 64, 2, 64, 127, 0, 0, 127, 0, 0 };
+    static const int16_t def[MD_VALUES] = { 3, 2, 3, 64, 2, 3, 64, 2, 127, 127, 0, 0, 127, 0, 0 };
     assert(modeldigi_machine.id == 42 && modeldigi_machine.render == 42 && modeldigi_machine.params == 3);
     assert(page()->base.abi == cm_ui_v32 && page()->base.page_from == 3 && page()->page_count == 2);
     for (int p = 0; p < 2; ++p) {
@@ -144,7 +144,7 @@ static void descriptor(void)
         assert((n->flags & (CM_RANGE | CM_DEFAULT)) == (CM_RANGE | CM_DEFAULT) && !(n->flags & CM_HIDDEN));
         assert(n->min == 0 && n->max == (selector ? 5 << 8 : 0x7f00) && n->def == def[k] << 8);
         assert(n->name && strlen(n->name) <= 4 && n->lname && n->look == (selector || k == MD_FRQ2 || k == MD_FRQ3 ? 0x84 : 0x86));
-        int stock_dial = k == MD_FRQ2 || k == MD_FRQ3 || k == MD_TUNE || k == MD_DPTH;
+        int stock_dial = k == MD_FRQ2 || k == MD_FRQ3 || k == MD_DPTH;
         assert(!!(n->flags & CM_DRAW) == !stock_dial);
         assert(!!n->draw == !stock_dial);
         assert(!(n->flags & CM_NOT_SAMPLE) == (k != MD_FRQ2));   /* knob D */
@@ -161,9 +161,9 @@ static void decoding(void)
         near_cents(p.frequency_q16_16[o], 261.6256);
     assert(p.waveform[0] == 3 && p.waveform[1] == 3 && p.waveform[2] == 3);
     assert(p.level[0] == 65535 && p.level[1] == 0 && p.level[2] == 0);
-    assert(!p.modulation_enabled && p.modulation_depth_q16_16 == 0 && p.osc3_control);
+    assert(!p.modulation_enabled && p.modulation_depth_q16_16 == 0 && p.osc3_control && p.analog);
 
-    /* Ranges, note and tune. */
+    /* Ranges and note. */
     static const double range_ratio[6] = { 0.0077792, 0.25, 0.5, 1, 2, 4 };
     for (int r = 0; r < 6; ++r) {
         v[MD_RNG1] = (int16_t)(r << 8);
@@ -171,12 +171,10 @@ static void decoding(void)
         near_cents(p.frequency_q16_16[0], 440 * range_ratio[r]);
     }
     defaults(v);
-    v[MD_TUNE] = 127 << 8;
+    v[MD_ANLG] = 63 << 8;
     modeldigi_decode(v, 60 << 16, &p);
-    near_cents(p.frequency_q16_16[0], 261.6256 * pow(2, 100 / 1200.0));
-    v[MD_TUNE] = 0;
-    modeldigi_decode(v, 60 << 16, &p);
-    near_cents(p.frequency_q16_16[0], 261.6256 * pow(2, -100 / 1200.0));
+    assert(!p.analog);
+    near_cents(p.frequency_q16_16[0], 261.6256);
 
     /* FRQ: fine near unison, exact semitones, symmetric, interpolated between steps. */
     static const struct { int position; double cents; } frq[] = {
@@ -244,7 +242,7 @@ static void text(void)
         { MD_TEXT_WAVE12, 1 << 8, 0, "TRSW" }, { MD_TEXT_WAVE3, 1 << 8, 1, "REVERSE SAW" },
         { MD_TEXT_FRQ, 64 << 8, 0, "0.0" }, { MD_TEXT_FRQ, 67 << 8, 0, "+2.0" },
         { MD_TEXT_FRQ, 67 << 8, 1, "+2.04c" }, { MD_TEXT_FRQ, 127 << 8, 0, "+700" },
-        { MD_TEXT_FRQ_WIDE, 1 << 8, 1, "-3500c" }, { MD_TEXT_FRQ, 127 << 8, 1, "+700.0c" }, { MD_TEXT_TUNE, 0, 0, "-100" },
+        { MD_TEXT_FRQ_WIDE, 1 << 8, 1, "-3500c" }, { MD_TEXT_FRQ, 127 << 8, 1, "+700.0c" },
         { MD_TEXT_SWITCH, 63 << 8, 0, "OFF" }, { MD_TEXT_SWITCH, 64 << 8, 0, "ON" },
         { MD_TEXT_DEPTH, 127 << 8, 1, "1.508 OCT" }, { MD_TEXT_DEPTH, 0, 0, "0.00" },
     };

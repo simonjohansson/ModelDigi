@@ -13,6 +13,7 @@ typedef struct {
     uint32_t modulation_depth_q16_16; /* 0..2 octaves * 65536, not recorded amount */
     bool modulation_enabled;
     bool osc3_control;
+    bool analog; /* drift and mixer, in a build with MODELDIGI_ANALOG */
 } modeldigi_osc_params;
 
 /* Private layout: not a sound format or a stable ABI. */

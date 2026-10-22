@@ -425,7 +425,7 @@ void modeldigi_osc_render(modeldigi_osc_state *state, const modeldigi_osc_params
             drift_step(state);
         if (n > left)
             n = left;
-        for (unsigned v = 0; v < 3; ++v)
+        for (unsigned v = 0; v < 3 && params->analog; ++v)
             base[v] = modulate(step[v], state->drift[v] >> 8);
         state->frame += n;
 #endif
@@ -440,8 +440,15 @@ void modeldigi_osc_render(modeldigi_osc_state *state, const modeldigi_osc_params
         for (unsigned v = 0; v < 2; ++v)
             run(&c[v], &state->phase[v], &state->last[v], base[v], modulated ? octaves : 0, 0, 0, 0, w, n);
 #ifdef MODELDIGI_ANALOG
-        for (unsigned i = 0; i < n; ++i)
-            output[done + i] = dc_block(state, mixer(state, w[i]));
+        if (params->analog) {
+            for (unsigned i = 0; i < n; ++i)
+                output[done + i] = dc_block(state, mixer(state, w[i]));
+        } else {
+            /* Off is the clean output; turning it on starts the mixer as a fresh bank does. */
+            for (unsigned i = 0; i < n; ++i)
+                output[done + i] = w[i];
+            state->mix_in = state->mix_residue = state->dc_in = state->dc_out = 0;
+        }
 #else
         for (unsigned i = 0; i < n; ++i)
             output[done + i] = w[i];

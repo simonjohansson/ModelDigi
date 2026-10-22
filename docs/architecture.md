@@ -37,12 +37,12 @@ companion provides, and each page is stored where it is shown:
 | Page | A | B | C | D | E | F | G | H |
 |---|---|---|---|---|---|---|---|---|
 | OSC | Osc 1 range | Osc 1 wave | Osc 2 range | Osc 2 frequency | Osc 2 wave | Osc 3 range | Osc 3 frequency | Osc 3 wave |
-| MIX | Tune | Osc 3 control | Modulation | Mod depth | Osc 1 level | Osc 2 level | Osc 3 level | blank |
+| MIX | Analog | Osc 3 control | Modulation | Mod depth | Osc 1 level | Osc 2 level | Osc 3 level | blank |
 
 The OSC page uses MIDI CC 16–23 in the order above. The MIX page uses
-CC 24–30 in order: Tune, Control, Modulation, Depth, Level 1, Level 2 and
+CC 24–30 in order: Analog, Control, Modulation, Depth, Level 1, Level 2 and
 Level 3. Incoming selectors clamp to 0–5; all other controls use 0–127.
-The two switches flip at 64. Native track channels, auto channel and receive
+The three switches flip at 64. Native track channels, auto channel and receive
 settings still apply. A temporary local lookup hook adds the extra CCs only
 for ModelDigi audio tracks; the native lookup handles other machines, MIDI
 tracks, FX and unrelated controllers. A second hook supplies each control's
@@ -53,7 +53,8 @@ Approved stored meanings:
 - Oscillator 2/3 frequency: centre is unison; steps grow quadratically to
   exact semitones at ±1, then fall on every semitone to ±7 (0.23 cents is the
   first step). Oscillator 3 with CONTROL off sweeps five times as far.
-- Tune: ±100 cents, linear. Levels follow the sample level's square law;
+- Analog: on by default. It switches the device firmware's analog character
+  on or off; off renders the clean engine exactly. Levels follow the sample level's square law;
   zero mutes without stopping oscillator 3's modulation. Depth interpolates
   the recorded amount-to-depth points, reaching 1.509 octaves.
 - Pitch: 261.6256 Hz at note 60 and 8', octave ranges, and LO at the frozen
