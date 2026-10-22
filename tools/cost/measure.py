@@ -117,6 +117,8 @@ def main():
     report = dict(period=PERIOD, stock=STOCK, budget_one=BUDGET, budget_each_of_two=BUDGET // 2,
                   helpers=helpers, scenarios=rows)
     (args.out / 'cost.json').write_text(json.dumps(report, indent=2) + '\n')
+    if worst > BUDGET:
+        sys.exit(f'FAIL: the worst block, {worst} cycles, exceeds the one-instance budget of {BUDGET}')
 
 
 if __name__ == '__main__':

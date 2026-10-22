@@ -53,6 +53,10 @@ jobs:
       - uses: jdx/mise-action@v3
       - name: Cross toolchain, submodules and emulator
         run: mise bootstrap
+      - name: ColdFire assembly matches its C
+        run: mise run cost:equivalence
+      - name: Render cost within the one-instance budget
+        run: mise run cost
       - name: Build and lint the Digitakt mod
         run: mise run build:digitakt
       - name: Package the firmware

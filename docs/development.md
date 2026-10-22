@@ -106,7 +106,9 @@ and all frozen slow-modulation cases through mise, without private recordings.
 A second job downloads the stock OS1.54 from Elektron's public support page,
 checks the `.syx` against its pinned SHA-256 and keeps it in the repository's
 Actions cache. It then builds and lints the mod, packages the firmware and runs
-the emulator control checks. The firmware is never committed or uploaded.
+the emulator control checks. The same job checks the assembly against its C
+with `cost:equivalence` and the one-instance budget with `cost`. The firmware
+is never committed or uploaded.
 
 Cost reductions may change output when every frozen instrument tolerance and
 the spectral limit still pass. The complete-firmware render keeps a 10%
@@ -123,7 +125,8 @@ It also reports any 64-bit
 runtime helper the engine would import. Its nominal stock-render estimate is
 about 100,000 of the 166,700 cycles in each period at 250 MHz, so the tool
 reports against a nominal 50,000 cycles for one instance or 25,000 for each
-of two. These are estimates; the firmware check's timing stage and the device
+of two, and exits unsuccessfully when the worst block exceeds the one-instance
+budget. These are estimates; the firmware check's timing stage and the device
 remain the authority. The task needs the cross-toolchain and a bootstrapped
 digiemu.
 
