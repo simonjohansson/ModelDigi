@@ -70,52 +70,27 @@ static inline __attribute__((always_inline)) uint32_t modulate(uint32_t inc, int
     return r < LO_INC ? LO_INC : r > HI_INC ? HI_INC : r;
 }
 
-/* floor(d * 65536 / inc) for 0 <= d < inc < 2^31, by shift and subtract. */
+/* floor(d * 65536 / inc) for 0 <= d < inc < 2^31: one 16-bit quotient digit of Knuth's algorithm D.
+ * With inc normalized to two 16-bit digits, the estimate from the high digit, corrected against
+ * the low one, is exact. */
 static inline __attribute__((always_inline)) uint32_t fraction(uint32_t d, uint32_t inc)
 {
-    uint32_t q = 0;
-    for (unsigned k = 0; k < 16; ++k) {
-        d <<= 1;
-        q <<= 1;
-        if (d >= inc) {
-            d -= inc;
-            q |= 1;
-        }
+    unsigned s = __builtin_clz(inc);
+    d <<= s;
+    inc <<= s;
+    uint32_t hi = inc >> 16, lo = inc & 0xffff, q = d / hi;
+    if (q > 0xffff)
+        q = 0xffff;
+    uint32_t r = d - q * hi;
+    while (r <= 0xffff && q * lo > r << 16) {
+        --q;
+        r += hi;
     }
     return q;
 }
 
-/* The same quotient for repeated steps: floor(2^48 / inc), or 0 for inc <= 2^16, where a plain
- * 32-bit division is exact. */
-static uint32_t reciprocal(uint32_t inc)
-{
-    if (inc <= 65536)
-        return 0;
-    uint32_t whole = 0xffffffffu / inc, rest = 0xffffffffu % inc + 1;   /* 2^32 = whole * inc + rest */
-    if (rest == inc) {
-        whole += 1;
-        rest = 0;
-    }
-    return whole << 16 | fraction(rest, inc);
-}
-
-/* floor(d * 65536 / inc) from inc's reciprocal: the estimate is low by at most one, and the
- * remainder, below 2 * inc < 2^32, decides. */
-static inline __attribute__((always_inline)) uint32_t quotient(uint32_t d, uint32_t inc, uint32_t recip)
-{
-    if (!recip)
-        return (d << 16) / inc;
-    uint32_t q = mulhi(d, recip);
-    return (d << 16) - q * inc >= inc ? q + 1 : q;
-}
-
 #define TAPS (2 * EDGE_HALF)
 typedef char tail_layout[sizeof ((modeldigi_osc_state *)0)->tail == (TAPS - 1) * sizeof(int32_t) ? 1 : -1];
-
-/* The reciprocal of the step it was computed for. */
-typedef struct {
-    uint32_t inc, recip;
-} divisor;
 
 /* An event `behind` (0 <= behind < last) before a sample whose previous step was last: add its step
  * of step_q14 * 2^14 output units and its slope change of 8 * kink Q16 units a cycle, (last >> 16)
@@ -129,38 +104,42 @@ typedef struct {
 #define MODELDIGI_STR(x) MODELDIGI_STR2(x)
 void modeldigi_edge_taps(int32_t *w, const int32_t *pairs, uint32_t factors, uint32_t shift);
 /* EMAC, integer mode (the render sets MACSR): two multiply-accumulates a tap, the odd tap's pair
- * loading on the even tap's first, alternating accumulators. factors: f1 high, f2 low. */
+ * loading on the even tap's first, alternating accumulators. factors: f1 high, f2 low. Unrolled,
+ * with the next even pair's load between the last MAC and the first accumulator read, which
+ * would otherwise stall. */
+#define MODELDIGI_TAP_MACS                          \
+    "	mac.w	%d3u,%d1u,(%a1)+,%d0,%acc0\n"         \
+    "	mac.w	%d3l,%d1l,%acc0\n"                    \
+    "	mac.w	%d0u,%d1u,%acc1\n"                    \
+    "	mac.w	%d0l,%d1l,%acc1\n"
+#define MODELDIGI_TAP_STORES                        \
+    "	movclr.l	%acc0,%d4\n"                      \
+    "	asr.l	%d2,%d4\n"                            \
+    "	add.l	%d4,(%a0)+\n"                         \
+    "	movclr.l	%acc1,%d4\n"                      \
+    "	asr.l	%d2,%d4\n"                            \
+    "	add.l	%d4,(%a0)+\n"
 __asm__(
     "	.pushsection .text\n"
     "	.even\n"
     "	.type	modeldigi_edge_taps, @function\n"
     "modeldigi_edge_taps:\n"
-    "	lea	-16(%sp),%sp\n"
-    "	movem.l	%d2-%d5,(%sp)\n"
-    "	move.l	20(%sp),%a0\n"
-    "	move.l	24(%sp),%a1\n"
-    "	move.l	28(%sp),%d1\n"
-    "	move.l	32(%sp),%d2\n"
-    "	moveq	#" MODELDIGI_STR(EDGE_HALF) ",%d5\n"
+    "	lea	-12(%sp),%sp\n"
+    "	movem.l	%d2-%d4,(%sp)\n"
+    "	move.l	16(%sp),%a0\n"
+    "	move.l	20(%sp),%a1\n"
+    "	move.l	24(%sp),%d1\n"
+    "	move.l	28(%sp),%d2\n"
     "	move.l	(%a1)+,%d3\n"
-    "1:\n"
-    "	mac.w	%d3u,%d1u,(%a1)+,%d0,%acc0\n"
-    "	mac.w	%d3l,%d1l,%acc0\n"
-    "	mac.w	%d0u,%d1u,%acc1\n"
-    "	mac.w	%d0l,%d1l,%acc1\n"
-    "	movclr.l	%acc0,%d4\n"
-    "	asr.l	%d2,%d4\n"
-    "	add.l	%d4,(%a0)+\n"
-    "	movclr.l	%acc1,%d4\n"
-    "	asr.l	%d2,%d4\n"
-    "	add.l	%d4,(%a0)+\n"
-    "	subq.l	#1,%d5\n"
-    "	beq.s	2f\n"
+    "	.rept	" MODELDIGI_STR(EDGE_HALF) " - 1\n"
+    MODELDIGI_TAP_MACS
     "	move.l	(%a1)+,%d3\n"
-    "	bra.s	1b\n"
-    "2:\n"
-    "	movem.l	(%sp),%d2-%d5\n"
-    "	lea	16(%sp),%sp\n"
+    MODELDIGI_TAP_STORES
+    "	.endr\n"
+    MODELDIGI_TAP_MACS
+    MODELDIGI_TAP_STORES
+    "	movem.l	(%sp),%d2-%d4\n"
+    "	lea	12(%sp),%sp\n"
     "	rts\n"
     "	.size	modeldigi_edge_taps, .-modeldigi_edge_taps\n"
     "	.popsection\n");
@@ -177,21 +156,18 @@ static inline __attribute__((always_inline)) void taps(int32_t *w, const int32_t
 #endif
 
 /* Out of line: one copy of the corrections serves every edge, which the instruction cache rewards. */
-static __attribute__((noinline)) void event(int32_t *w, uint32_t behind, uint32_t last, divisor *q,
-                                            int32_t step_q14, int32_t kink)
+static __attribute__((noinline)) void event(int32_t *w, uint32_t behind, uint32_t last, int32_t step_q14, int32_t kink)
 {
-    if (q->inc != last) {
-        q->inc = last;
-        q->recip = reciprocal(last);
-    }
-    int32_t d = (int32_t)quotient(behind, last, q->recip), row = d >> 10, f = d & 1023;
+    int32_t d = (int32_t)fraction(behind, last), row = d >> 10, f = d & 1023;
     /* Residue j is pair high + low * f / 1024: with the step folded into both factors once, each
      * sample takes two 16-bit products. The row sums give what was added, so the step's residues
      * can be completed to their exact sum d - 1/2: the sampled output keeps the ideal waveform's
      * mean. */
-    int32_t s2 = step_q14 * f >> 10;
-    taps(w, step_pairs[row], step_q14, s2, 1);
-    w[EDGE_HALF] += (step_q14 * (d - 32768) >> 2) - ((step_q14 * step_sums[row][0] + s2 * step_sums[row][1]) >> 1);
+    if (step_q14) {   /* zero at a triangle's corner */
+        int32_t s2 = step_q14 * f >> 10;
+        taps(w, step_pairs[row], step_q14, s2, 1);
+        w[EDGE_HALF] += (step_q14 * (d - 32768) >> 2) - ((step_q14 * step_sums[row][0] + s2 * step_sums[row][1]) >> 1);
+    }
     if (kink) {
         /* (last >> 16) * kink >> 14 stays within 16 bits: (inc >> 16) * tri peaks at 27306 * 14570. */
         int32_t bend = ((int32_t)(last >> 16) * kink) >> 14, b2 = bend * f >> 10;
@@ -249,22 +225,22 @@ static int32_t smulhi(int32_t a, uint32_t b)
 
 /* One sample of a line shape or a pulse at phase p into w[EDGE_HALF], with the corrections for edges
  * in the step just taken, of last, spread over w[0..TAPS - 1]. */
-static inline __attribute__((always_inline)) void line_sample(const voice *c, int32_t *w, uint32_t p, uint32_t last, divisor *q)
+static inline __attribute__((always_inline)) void line_sample(const voice *c, int32_t *w, uint32_t p, uint32_t last)
 {
     w[EDGE_HALF] += (tri_unit(p) * c->tri + saw_unit(p) * c->saw) >> 3;
-    if (p < last)
-        event(w, p, last, q, c->saw, -c->tri);
+    if (p < last && (c->saw | c->tri))   /* a silent voice has no edges */
+        event(w, p, last, c->saw, -c->tri);
     if (c->tri && p - HALF < last)
-        event(w, p - HALF, last, q, 0, c->tri);
+        event(w, p - HALF, last, 0, c->tri);
 }
 
-static inline __attribute__((always_inline)) void pulse_sample(const voice *c, int32_t *w, uint32_t p, uint32_t last, divisor *q)
+static inline __attribute__((always_inline)) void pulse_sample(const voice *c, int32_t *w, uint32_t p, uint32_t last)
 {
     w[EDGE_HALF] += pulse_high(p, c->half) ? c->high : c->low;
     if (p + c->half < last)
-        event(w, p + c->half, last, q, c->step, 0);
+        event(w, p + c->half, last, c->step, 0);
     if (p - c->half < last)
-        event(w, p - c->half, last, q, -c->step, 0);
+        event(w, p - c->half, last, -c->step, 0);
 }
 
 /* One voice over n samples into w (sample i's own value at w[i + EDGE_HALF]), from its phase and previous
@@ -275,15 +251,14 @@ static void run(const voice *c, uint32_t *phase, uint32_t *previous, uint32_t st
                 const voice *source, uint32_t depth, int control, int32_t *w, unsigned n)
 {
     uint32_t p = *phase, last = *previous;
-    divisor q = { 0, 0 };   /* computed at the first edge */
     if (!octaves) {
         /* Unmodulated: a fixed step, so a loop per shape class. */
         if (c->shape < 4)
             for (unsigned i = 0; i < n; ++i, p += step, last = step)
-                line_sample(c, w + i, p, last, &q);
+                line_sample(c, w + i, p, last);
         else
             for (unsigned i = 0; i < n; ++i, p += step, last = step)
-                pulse_sample(c, w + i, p, last, &q);
+                pulse_sample(c, w + i, p, last);
         *phase = p;
         *previous = last;
         return;
@@ -305,9 +280,9 @@ static void run(const voice *c, uint32_t *phase, uint32_t *previous, uint32_t st
         }
         uint32_t inc = oct ? modulate(step, oct) : step;
         if (c->shape < 4)
-            line_sample(c, w + i, p, last, &q);
+            line_sample(c, w + i, p, last);
         else
-            pulse_sample(c, w + i, p, last, &q);
+            pulse_sample(c, w + i, p, last);
         p += inc;
         last = inc;
     }

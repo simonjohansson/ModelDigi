@@ -10,7 +10,7 @@ static uint32_t next(uint32_t *x)
     return *x;
 }
 
-/* The cached-reciprocal quotient equals the exact shift-and-subtract one for every step size class. */
+/* The edge fraction equals exact 64-bit division for every step size class. */
 int main(void)
 {
     uint32_t x = 12345, incs[64];
@@ -24,8 +24,8 @@ int main(void)
     for (unsigned t = 0; t < 2000000; ++t) {
         uint32_t inc = t < n * 1000 ? incs[t % n] : next(&x) % 1789569706u + 1;
         uint32_t d = t % 4 == 0 ? inc - 1 : t % 4 == 1 ? 0 : next(&x) % inc;
-        assert(quotient(d, inc, reciprocal(inc)) == fraction(d, inc));
+        assert(fraction(d, inc) == (uint32_t)(((uint64_t)d << 16) / inc));
     }
-    puts("PASS: edge quotient matches exact division");
+    puts("PASS: edge fraction matches exact division");
     return 0;
 }
