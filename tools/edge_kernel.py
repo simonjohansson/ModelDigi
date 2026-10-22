@@ -52,12 +52,12 @@ if __name__ == "__main__":
         values = np.round(np.array(table) * scale).astype(int)
         delta = values[1:] - values[:-1]
         assert abs(values).max() < 32768 and abs(delta).max() < 32768
-        print(f"/* Rows 0..{PHASES - 1}, each row's step to the next, and their sums. */")
-        for suffix, rows in (("table", values[:-1]), ("delta", delta)):
-            print(f"static const int16_t {name}_{suffix}[{PHASES}][{2 * HALF}] = {{")
-            for row in rows:
-                print("    { " + ", ".join(map(str, row)) + " },")
-            print("};")
+        print(f"/* Rows 0..{PHASES - 1}: each residue in the high half, its step to the next row in the low half. */")
+        print(f"static const int32_t {name}_pairs[{PHASES}][{2 * HALF}] = {{")
+        for row, step_row in zip(values[:-1], delta):
+            print("    { " + ", ".join(f"{(int(a) << 16) | (int(d) & 0xffff):#010x}" for a, d in zip(row, step_row)) + " },")
+        print("};")
+        print(f"/* Row sums of the residues and of their steps. */")
         print(f"static const int32_t {name}_sums[{PHASES}][2] = {{")
         for a, d in zip(values[:-1].sum(axis=1), delta.sum(axis=1)):
             print(f"    {{ {a}, {d} }},")
