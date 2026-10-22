@@ -103,7 +103,7 @@ depends = ["build:renderer"]
 run = 'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_oscillators.py --reference-dir "${MODELDIGI_REFERENCE_DIR:?Set MODELDIGI_REFERENCE_DIR to retained reference evidence}" "$@"'
 
 [tasks."analyse:device:oscillator"]
-description = "Analyse retained oscillator1 USB captures without operating the device"
+description = "Analyse retained single-oscillator USB captures without operating the device"
 depends = ["build:renderer"]
 run = 'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_device_oscillator.py "$@"'
 
