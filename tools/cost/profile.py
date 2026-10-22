@@ -141,7 +141,7 @@ def source_locations(elf, addresses):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--blocks', type=int, default=24)
-    parser.add_argument('--factor', type=int, choices=(1, 2, 4, 8, 16), default=4)
+    parser.add_argument('--factor', type=int, choices=(1, 2, 4, 8, 16), default=1)
     parser.add_argument('--out', type=Path)
     args = parser.parse_args()
     if args.blocks < 1:

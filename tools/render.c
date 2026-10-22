@@ -14,7 +14,7 @@ int main(int argc, char **argv)
 {
     modeldigi_osc_params p = {0};
     modeldigi_osc_state s;
-    uint64_t initial_phase[3] = {0};
+    uint32_t initial_phase[3] = {0};
     bool phase_set[3] = {false};
     double seconds = 3;
     p.frequency_q16_16[0] = p.frequency_q16_16[1] = 440 * 65536;
@@ -42,7 +42,7 @@ int main(int argc, char **argv)
             else if (!strcmp(key, "wave") && value >= 0 && value <= 6 && value == floor(value)) p.waveform[v] = (uint8_t)value;
             else if (!strcmp(key, "level") && value >= 0 && value <= 1) p.level[v] = (uint16_t)llround(value * 65535);
             else if (!strcmp(key, "phase") && value >= 0 && value < 1) {
-                initial_phase[v] = (uint64_t)(value * (double)(UINT64_C(1) << 48)) << 16;
+                initial_phase[v] = (uint32_t)(value * 4294967296.0);
                 phase_set[v] = true;
             }
             else goto invalid;
@@ -64,7 +64,7 @@ invalid:
     modeldigi_osc_init(&s);
     /* Host diagnostics override only initial phase; the engine API is unchanged. */
     for (unsigned v = 0; v < 3; ++v)
-        if (phase_set[v]) s.voice[v].phase = initial_phase[v];
+        if (phase_set[v]) s.phase[v] = initial_phase[v];
     for (uint32_t at = 0; at < frames;) {
         int32_t block[32];
         unsigned count = frames - at < 32 ? frames - at : 32;

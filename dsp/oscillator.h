@@ -15,43 +15,19 @@ typedef struct {
     bool osc3_control;
 } modeldigi_osc_params;
 
-/* Private scratch layout: not a sound format or a stable ABI. */
-struct modeldigi_osc_voice {
-    uint64_t phase, increment; /* Q0.64 cycles, low 16 bits zero */
-    int32_t previous, held, slope[2];
-    uint16_t level;
-    uint8_t waveform;
-    bool primed;
-};
-
-struct modeldigi_osc_filter {
-    int32_t state[2][4]; /* each allpass branch's section memories */
-};
-
-struct modeldigi_osc_factor {
-    uint32_t t;
-    int32_t whole;
-};
-
-struct modeldigi_osc_workspace {
-    int32_t mix[64];
-    struct modeldigi_osc_factor mod[64];
-};
-
+/* Private layout: not a sound format or a stable ABI. */
 typedef struct {
-    struct modeldigi_osc_voice voice[3];
-    struct modeldigi_osc_filter filter[4];
-    /* Transient working memory, owned by this bank and overwritten before use. */
-    struct modeldigi_osc_workspace workspace;
+    uint32_t phase[3]; /* Q0.32 cycles */
+    uint32_t last[3];  /* each voice's previous step, for its edge corrections */
+    int32_t tail[11];  /* the next samples' pending output and corrections */
 } modeldigi_osc_state;
 
-/* Initializes persistent state; transient workspace does not need initialization. */
+/* Initializes persistent state. */
 void modeldigi_osc_init(modeldigi_osc_state *state);
-/* 48 kHz mono Q31 with fixed 1/16 bank gain; no firmware dependencies.
+/* 48 kHz mono Q31 with fixed 1/16 bank gain, 6 samples late; no firmware dependencies.
  * Output may be NULL for zero frames, which changes nothing. State/params
- * must be valid. Parameters are constant per call; callers own control ramps.
- * Bounds clamp deterministically, invalid shapes become triangle. Clamped
- * instantaneous-frequency trajectories are outside the fidelity domain. */
+ * must be valid. Parameters are constant per call. Frequencies clamp to the
+ * bounds above, invalid shapes become triangle. */
 void modeldigi_osc_render(modeldigi_osc_state *state,
                          const modeldigi_osc_params *params,
                          int32_t *output, size_t frames);

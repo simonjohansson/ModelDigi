@@ -39,7 +39,7 @@ the SDK's hash verification and reject unknown firmware.
 | `mise run build` | Builds Core, machine-pages and ModelDigi for Digitakt OS1.54; lints the machine with its dependencies. Artifacts go into `out/os<OS>/`. |
 | `mise run firmware` | Builds and patches the selected stock OS into `out/Digitakt_ModelDigi.syx`. No device transfer. |
 | `mise run emu` | Builds firmware, prepares it in digiemu and opens its panel. Emulator data stays in `.digiemu/`. |
-| `mise run test` | Checks C oscillator state, splitting, bounds and routing, plus Digitakt control decoding, value text, page layout, actual single-oscillator output, state lifetime and track isolation. |
+| `mise run test` | Checks C oscillator state, splitting, bounds and routing, plus Digitakt control decoding, value text, page layout, actual bank output, state lifetime and track isolation. |
 
 The first three tasks dispatch to Digitakt and Digitone. Every Digitone
 subtask is a successful placeholder with no artifact or panel. Direct
@@ -55,9 +55,7 @@ Core, machine-pages and ModelDigi. The emulator retains earlier builds and
 their sessions rather than deleting them automatically.
 
 The Digitakt build registers ModelDigi as machine 42. In the emulator, use
-FUNC+SRC to choose it, then SRC to switch between OSC and MIX. The current
-trial sounds only oscillator 1; oscillator 2/3 and modulation values retain
-their stored meanings while their sound and modulation are disabled.
+FUNC+SRC to choose it, then SRC to switch between OSC and MIX.
 
 ## Oscillator development
 
@@ -68,7 +66,6 @@ firmware or private recordings; uv supplies pinned NumPy using mise's Python.
 mise run test:oscillators
 mise run render out/saw.wav seconds=3 freq1=440 wave1=3
 mise run test:modulation
-mise run test:refinement
 ```
 
 Waveform indices are triangle, triangle/saw combination, reverse saw, saw,
@@ -84,14 +81,13 @@ and 98 static spectral cases: seven shapes at 375, 997, 1500, 3000, 3001, 6000,
 do not divide 48 kHz, reducing coincident harmonic/alias cancellation.
 The approved range remains 1/16–20000 Hz. The spectral limit over 20 Hz–20 kHz
 is −60 dBc for fundamentals up to 12 kHz and −50 dBc above, where fundamentals
-are musically rare and the production rate's narrow pulse leaves about
-−56 dBc. The residual includes errors at harmonic bins and is measured
-against static Fourier identities with the known correction/filter response. The 20–24 kHz transition band is reported
+are musically rare. The residual includes errors at harmonic bins and is measured
+against static Fourier identities with the edge kernel's known response and delay. The 20–24 kHz transition band is reported
 separately. This grid is not an audio-rate FM alias qualification.
 
 GitHub Actions runs the host mechanics, portable spectral/measurement checks
 and all frozen slow-modulation cases through mise. It needs neither private
-recordings nor stock firmware. Host checks run at the production 4× rate.
+recordings nor stock firmware.
 
 Cost reductions may change output when every frozen instrument tolerance and
 the spectral limit still pass. The complete-firmware render keeps a 10%
@@ -109,8 +105,7 @@ of two. These are estimates; the firmware check's timing stage and the device
 remain the authority. The task needs the cross-toolchain and a bootstrapped
 digiemu.
 
-`mise run cost:profile --blocks 24` profiles the same six scenarios at 4×,
-or at the rate given by `--factor`, separating setup, the first block, warm-up
+`mise run cost:profile --blocks 24` profiles the same six scenarios, separating setup, the first block, warm-up
 and warm rendering. It attributes
 cycles to basic blocks and source instructions, including inlined helpers.
 Its checks require debug information to preserve the executable image and
@@ -139,10 +134,7 @@ reported, not corrected, and is not an acceptance target. The phase table is
 committed beside the frozen targets, not inside them. Feedback phases depend on the engine's
 behavior during the one-second lead-in, and portable checks cannot detect a
 stale table; after any change to the modulation path, run the local recording
-comparison below with `--modulation`. Refinement doubles the entire
-same C algorithm from 4× to 8× and checks those summaries within one tenth of
-their frozen acceptance limits. It reports filter delay separately and does
-not establish samplewise dynamic convergence or all-start-phase robustness.
+comparison below with `--modulation`.
 Reports and rendered WAVs stay under ignored `out/`; targets are never rewritten.
 
 For start-phase diagnostics, the host renderer accepts `phase1`, `phase2` and
@@ -154,14 +146,12 @@ scratch state and add no device or shared-engine control.
 carrier phases × eight source phases, plus the canonical start. It applies the
 unchanged frozen span and both mean limits, and exits unsuccessfully if any
 probe fails. It is an explicit diagnostic of start-phase sensitivity, not part
-of the default CI suite. Use `--renderer`, `--factor` and a separate `--out` to
-repeat with a higher-rate build of the same C engine.
+of the default CI suite.
 
 Finite-window pitch-span percentiles can depend on the source phase even in a
 steady signal: at amount 1, open-loop ramp spans move by about 8.5 cents across
 start phases. That is why acceptance uses each recording's observed phase.
-Keep this estimator sensitivity separate from reference error and
-rate-refinement error. A complete-period span is useful diagnostically, but
+Keep this estimator sensitivity separate from reference error. A complete-period span is useful diagnostically, but
 must not replace the frozen extractor or its targets without review.
 
 The phase report also includes a separate cycle diagnostic for this descending
@@ -263,8 +253,7 @@ hardware operation. Opening the emulator is separate from host tests.
 Physical acceptance remains scoped to the retained device recordings. Complete
 performance budget, broader saved-sound compatibility, audio-rate FM
 quality and fidelity beyond the declared reference subset remain outstanding.
-The emulator task runs the restricted one-oscillator timing trial
-at 4×; it does not enable the full bank or modulation.
+The emulator task runs the full bank.
 
 Stock firmware, built mods, custom firmware, emulator images and raw
 research stay local and ignored. Keep dependency revisions pinned; consult

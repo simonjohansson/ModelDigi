@@ -46,7 +46,7 @@ description = "Build ModelDigi device mods"
 depends = ["build:digitakt", "build:digitone"]
 
 [tasks."build:digitakt"]
-description = "Build and lint the one-oscillator Digitakt OS1.54 trial"
+description = "Build and lint ModelDigi for Digitakt OS1.54"
 depends = ["build:deps:digitakt"]
 run = '''
 set -eu
@@ -69,6 +69,8 @@ run = [
   "out/test_digitakt",
   "cc -std=c99 -O2 -Wall -Wextra -Werror dsp/oscillator.c tests/test_oscillator.c -o out/test_oscillator",
   "out/test_oscillator",
+  "cc -std=c99 -O2 -Wall -Wextra -Werror -Wno-unused-function tests/test_edge.c -o out/test_edge",
+  "out/test_edge",
 ]
 
 [tasks."build:renderer"]
@@ -110,21 +112,12 @@ description = "Check all frozen slow-modulation span and mean targets against th
 depends = ["build:renderer"]
 run = 'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_oscillators.py --modulation "$@"'
 
-[tasks."test:refinement"]
-description = "Double the same C engine's rate and compare all slow-modulation cases"
-depends = ["build:renderer"]
-run = [
-  "cc -std=c99 -O2 -Wall -Wextra -Werror -DMODELDIGI_OVERSAMPLE=8 dsp/oscillator.c tools/render.c -lm -o out/render-8",
-  'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_oscillators.py --modulation --out out/refinement-4',
-  'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_oscillators.py --modulation --factor 8 --renderer out/render-8 --out out/refinement-8 --compare out/refinement-4/validation.json',
-]
-
 [tasks.cost]
 description = "Estimate the oscillator bank's ColdFire cost per block with digiemu's cycle model"
 run = 'uv run --project vendor/digiemu python tools/cost/measure.py "$@"'
 
 [tasks."cost:profile"]
-description = "Profile the engine at one rate (default 4×) and verify cycle/state equivalence"
+description = "Profile the engine and verify cycle/state equivalence"
 run = 'uv run --project vendor/digiemu python tools/cost/profile.py "$@"'
 
 [tasks."test:phase-sweep"]
@@ -137,7 +130,7 @@ description = "Build custom firmware for the device targets"
 depends = ["firmware:digitakt", "firmware:digitone"]
 
 [tasks."firmware:digitakt"]
-description = "Package the selected stock OS with the one-oscillator ModelDigi trial"
+description = "Package the selected stock OS with ModelDigi"
 depends = ["build:digitakt"]
 run = '''
 set -eu

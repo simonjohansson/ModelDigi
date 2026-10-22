@@ -419,7 +419,8 @@ def static_checks(renderer, folder, targets, factor):
             result.append(dict(note=note, shape=shape, max_complex_error=error,
                                passed=error <= targets["tolerances"]["complex_ratio_absolute"]))
         expected_fundamental = targets["choices"]["saw_peak"] * abs(response(hz, factor)) / (16 * np.pi)
-        assert abs(abs(measured[3][0]) / expected_fundamental - 1) < .001
+        ratio = float(abs(measured[3][0]) / expected_fundamental)
+        result.append(dict(note=note, check="saw fundamental level", level_ratio=ratio, passed=abs(ratio - 1) < .001))
     return result
 
 
@@ -468,9 +469,26 @@ def stage_response(hz, rate):
     return 0.5 * (branches[0] + branches[1]/z) * z
 
 
+EDGE_HALF, EDGE_BETA, EDGE_CUTOFF = 6, 5.5, 20500.0
+
+
+def edge_response(hz, rate):
+    """The edge kernel's response at its own sample rate: a unit-area Kaiser-windowed sinc reaching
+    EDGE_HALF samples either side, from its closed form rather than the engine's tables."""
+    u = np.linspace(-EDGE_HALF, EDGE_HALF, 2 * EDGE_HALF * 512 + 1)
+    w = np.i0(EDGE_BETA * np.sqrt(np.clip(1 - (u / EDGE_HALF)**2, 0, None))) / np.i0(EDGE_BETA)
+    k = 2 * EDGE_CUTOFF / rate * np.sinc(2 * EDGE_CUTOFF / rate * u) * w
+    k /= np.trapezoid(k, u)
+    f = np.atleast_1d(np.asarray(hz, dtype=float))
+    out = np.trapezoid(k * np.cos(2 * np.pi * np.outer(f, u) / rate), u, axis=1)
+    return out if np.ndim(hz) else out[0]
+
+
 def response(hz, factor):
-    # Independent closed-form filter definition, not the candidate's coefficient array.
-    gain = np.sinc(np.asarray(hz, dtype=float) / (48000 * factor))**2 + 0j
+    # Independent closed-form filter definition, not the candidate's coefficient array. The
+    # kernel is causal by EDGE_HALF samples of the internal rate: a pure delay.
+    hz_ = np.asarray(hz, dtype=float)
+    gain = edge_response(hz, 48000 * factor) * np.exp(-2j * np.pi * hz_ * EDGE_HALF / (48000 * factor))
     rate_factor = factor
     while rate_factor > 1:
         gain = gain * stage_response(hz, 48000 * rate_factor)
@@ -514,7 +532,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--renderer", type=Path, default=ROOT / "out/render")
     parser.add_argument("--out", type=Path, default=ROOT / "out/oscillators")
-    parser.add_argument("--factor", type=int, choices=(1, 2, 4, 8, 16), default=4)
+    parser.add_argument("--factor", type=int, choices=(1, 2, 4, 8, 16), default=1)
     parser.add_argument("--reference-dir", type=Path)
     parser.add_argument("--modulation", action="store_true", help="Also run all frozen slow-modulation cases")
     parser.add_argument("--phase-sweep", action="store_true", help="Probe reverse-saw feedback at 33 carrier/source starts")
@@ -543,7 +561,7 @@ def main():
                   source_sha256=sha256(ROOT / "dsp/oscillator.c"),
                   factor=args.factor, static=static, alias=alias, frequencies=frequencies, local=local,
                   source_phase_derivation=derivation, modulation=modulation, phase_sweep=phase_sweep,
-                  alias_method="Coherent 1-second spectrum; 20 Hz–20 kHz residual against static Fourier identities with the documented polynomial-kernel and elliptic-halfband response, including harmonic-bin errors; 20–24 kHz transition band reported separately",
+                  alias_method="Coherent 1-second spectrum; 20 Hz–20 kHz residual against static Fourier identities with the documented windowed-sinc edge-kernel response, including harmonic-bin errors; 20–24 kHz transition band reported separately",
                   scope="Static shapes, resolved-frequency inputs and optional slow-modulation summaries; dynamic FM alias/refinement, device cost and firmware integration remain separate")
     if args.compare:
         report["refinement"] = refinement_checks(report, json.loads(args.compare.read_text()), targets)
@@ -559,7 +577,7 @@ def main():
               f"{worst['recorded_timing']['candidate_rate_difference_percent']:+.3f}% modulation rate, "
               f"{worst['recorded_timing']['end_lag_ms']} ms at the window end "
               f"(shape {worst['shape']}, amount {worst['amount']}, feedback {worst['feedback']})")
-    print(f"{'FAIL' if failures else 'PASS'}: {len(static)} frozen signed-shape, {len(alias)} static spectral, {len(frequencies)} frequency, {len(local)} local recording, {len(derivation)} source-phase, {len(modulation)} slow-modulation and {len(phase_sweep)} phase-sweep cases")
+    print(f"{'FAIL' if failures else 'PASS'}: {sum('shape' in row for row in static)} frozen signed-shape, {sum('check' in row for row in static)} saw level, {len(alias)} static spectral, {len(frequencies)} frequency, {len(local)} local recording, {len(derivation)} source-phase, {len(modulation)} slow-modulation and {len(phase_sweep)} phase-sweep cases")
     raise SystemExit(bool(failures))
 
 
