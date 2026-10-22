@@ -226,9 +226,10 @@ The pinned SDK provides a 32-sample Q31 render event after track playback and
 before stock overdrive, at 48 kHz. Machine-pages 1.2 permits fifteen logical
 source values over two pages, which hold the whole control inventory: three
 waveform selectors, three ranges, three audio levels (zero mutes),
-oscillator 2/3 relative frequency, common tune, OSC 3 CONTROL, modulation
-depth and modulation enable. Combining level and mute is a deliberate device
-adaptation. Master tune is per machine instance, not global instrument tuning.
+oscillator 2/3 relative frequency, OSC 3 CONTROL, modulation depth and
+modulation enable, plus a switch for the device firmware's analog character.
+Combining level and mute is a deliberate device adaptation. There is no common
+tune control; notes move the whole bank in semitones.
 
 Device parameter decoding, note arbitration, pitch conversion, voice lifetime
 and UI belong to the wrapper, which consumes the host's note and pitch

@@ -65,7 +65,6 @@ TEXT(range_text, MD_TEXT_RANGE)
 TEXT(wave12_text, MD_TEXT_WAVE12)
 TEXT(wave3_text, MD_TEXT_WAVE3)
 TEXT(frq2_text, MD_TEXT_FRQ)
-TEXT(tune_text, MD_TEXT_TUNE)
 TEXT(switch_text, MD_TEXT_SWITCH)
 TEXT(depth_text, MD_TEXT_DEPTH)
 
@@ -89,7 +88,7 @@ static int32_t frq3_text(char *buf, int32_t value, int32_t ctx, int32_t machine)
 
 static const struct cm_src_page pages[] = {
     { .title = "OSC 1/2", .parameter = { MD_RNG1, MD_WAV1, MD_RNG2, MD_FRQ2, MD_WAV2, MD_RNG3, MD_FRQ3, MD_WAV3 } },
-    { .title = "MIX 2/2", .parameter = { MD_TUNE, MD_CTRL, MD_MOD, MD_DPTH, MD_LEV1, MD_LEV2, MD_LEV3, CM_SRC_BLANK } },
+    { .title = "MIX 2/2", .parameter = { MD_ANLG, MD_CTRL, MD_MOD, MD_DPTH, MD_LEV1, MD_LEV2, MD_LEV3, CM_SRC_BLANK } },
 };
 
 static const struct cm_ui32 modeldigi_page = {
@@ -109,7 +108,7 @@ static const struct cm_ui32 modeldigi_page = {
         },
     },
     .extra = {
-        KNOB("TUNE", "Tune", 127, 64, 0, tune_text, 0),
+        KNOB("ANLG", "Analog", 127, 127, CM_DRAW, switch_text, modeldigi_draw_switch),
         KNOB("CTRL", "Osc 3 Control", 127, 127, CM_DRAW, switch_text, modeldigi_draw_switch),
         KNOB("MOD", "Modulation", 127, 0, CM_DRAW, switch_text, modeldigi_draw_switch),
         KNOB("DPTH", "Mod Depth", 127, 0, 0, depth_text, 0),

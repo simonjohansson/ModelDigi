@@ -16,6 +16,7 @@ static modeldigi_osc_params bank(void)
     p.frequency_q16_16[2] = 1000u * 65536;
     p.waveform[0] = 3; p.waveform[1] = 4; p.waveform[2] = 0;
     p.level[0] = p.level[1] = p.level[2] = 40000;
+    p.analog = true;
     return p;
 }
 

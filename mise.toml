@@ -74,6 +74,10 @@ run = [
   "out/test_edge",
   "cc -std=c99 -O2 -Wall -Wextra -Werror -Wno-unused-function -DMODELDIGI_ANALOG tests/test_analog.c -lm -o out/test_analog",
   "out/test_analog",
+  # The analog build with its switch off renders as the clean build does.
+  "cc -std=c99 -O2 -Wall -Wextra -Werror -Wno-unused-function -DMODELDIGI_ANALOG dsp/oscillator.c tools/render.c -lm -o out/render-analog",
+  "cc -std=c99 -O2 -Wall -Wextra -Werror dsp/oscillator.c tools/render.c -lm -o out/render",
+  "for p in 'wave1=3 wave2=5 wave3=1 freq2=441 freq3=659 level1=1 level2=1 level3=1' 'wave1=1 level1=1 depth=1 mod=1 freq3=5'; do out/render out/clean.wav seconds=1 $p && out/render-analog out/off.wav seconds=1 $p && cmp out/clean.wav out/off.wav || exit 1; done",
 ]
 
 [tasks."build:renderer"]

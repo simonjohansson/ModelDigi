@@ -104,11 +104,6 @@ int modeldigi_frq_anchor(int32_t value, int wide)
     return value == semitone_value(nearest, wide);
 }
 
-static int32_t tune_cents(int32_t v)
-{
-    return clamp((clamp(v, 0, TOP) - CENTER) * 625 / 1008, -10000, 10000);
-}
-
 static int32_t octaves(int32_t cx100)
 {
     return cx100 * 1024 / 1875;   /* cents x 100 to octaves, Q16 */
@@ -155,10 +150,10 @@ void modeldigi_decode(const int16_t values[MD_VALUES], int32_t note, modeldigi_o
 {
     static const uint8_t range_at[3] = { MD_RNG1, MD_RNG2, MD_RNG3 }, wave_at[3] = { MD_WAV1, MD_WAV2, MD_WAV3 };
     int control = values[MD_CTRL] >= CENTER;
-    int32_t keyed = (clamp(note, 0, 127 << 16) - (60 << 16)) / 12, tune = octaves(tune_cents(values[MD_TUNE]));
+    int32_t keyed = (clamp(note, 0, 127 << 16) - (60 << 16)) / 12;
     for (int v = 0; v < 3; ++v) {
         int range = selector(values[range_at[v]]), wave = selector(values[wave_at[v]]);
-        int32_t oct = range_q16[range] + tune + keyed;
+        int32_t oct = range_q16[range] + keyed;
         uint32_t base = BASE_HZ;
         p->waveform[v] = v < 2 ? wave12[wave] : wave3[wave];
         p->level[v] = level(values[MD_LEV1 + v]);
@@ -171,15 +166,16 @@ void modeldigi_decode(const int16_t values[MD_VALUES], int32_t note, modeldigi_o
             int32_t wide = 5 * modeldigi_frq_cents(values[MD_FRQ3]);
             if (range == 0) {
                 base = ONE_HZ;
-                oct = lo_free_log2(wide) + tune;
+                oct = lo_free_log2(wide);
             } else {
-                oct = range_q16[range] + tune - (2 << 16) + octaves(wide);
+                oct = range_q16[range] - (2 << 16) + octaves(wide);
             }
         }
         p->frequency_q16_16[v] = scale_hz(base, oct);
     }
     p->modulation_depth_q16_16 = depth(values[MD_DPTH]);
     p->modulation_enabled = values[MD_MOD] >= CENTER;
+    p->analog = values[MD_ANLG] >= CENTER;
     p->osc3_control = control;
 }
 
@@ -244,7 +240,6 @@ int modeldigi_text(int kind, int32_t v, int popup, char *buf)
     case MD_TEXT_WAVE3: put_text(buf, (popup ? wave3_long : wave3_short)[selector(v)]); break;
     case MD_TEXT_FRQ: cents_text(buf, modeldigi_frq_cents(v), popup); break;
     case MD_TEXT_FRQ_WIDE: cents_text(buf, 5 * modeldigi_frq_cents(v), popup); break;
-    case MD_TEXT_TUNE: cents_text(buf, tune_cents(v), popup); break;
     case MD_TEXT_SWITCH: put_text(buf, v >= CENTER ? "ON" : "OFF"); break;
     default: {
         int32_t milli = (int32_t)(depth(v) * 1000 / 65536);

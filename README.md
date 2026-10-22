@@ -14,8 +14,8 @@ A Model D–style oscillator section for the **Digitakt mk1**.
 - The waveforms and modulation match measurements of an original Model D's
   oscillators, and are checked against them on a computer.
 - On the Digitakt, each oscillator drifts slightly in pitch, and the mixer
-  saturates like the Model D's when the levels are pushed. See
-  [Analog character](docs/analog.md).
+  saturates like the Model D's when the levels are pushed. A switch on each
+  sound turns this off. See [Analog character](docs/analog.md).
 
 ModelDigi currently supplies the oscillator section, rather than the complete
 Model D filter, envelopes and amplifier.

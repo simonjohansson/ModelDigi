@@ -6,6 +6,11 @@ emulator build the bank without it, so the clean oscillators remain what is
 compared with the Model D reference. With the layer compiled out, the engine
 is bit-identical to the clean engine.
 
+Each sound's Analog switch, on by default, turns the layer on or off. Off
+renders the clean engine exactly; drift keeps wandering unheard, so turning the
+layer back on resumes it. The mixer restarts as it does for a new bank, so
+switching can click when levels are high.
+
 ## Oscillator drift
 
 **Source readings.** The original operation guide asks for about ten minutes
