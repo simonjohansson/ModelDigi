@@ -315,10 +315,9 @@ static void run(const voice *c, uint32_t *phase, uint32_t *previous, uint32_t st
     *previous = last;
 }
 
-#ifdef MODELDIGI_ANALOG
 /* Analog character, a design choice rather than a measurement: each oscillator's pitch wanders
  * slowly and independently, as a smoothed Ornstein-Uhlenbeck process stepped every DRIFT_FRAMES
- * on an absolute frame grid. Uniform noise of +-2^10 units (2^-24 octave) a step against a leak of
+ * on a grid of Analog-on frames. Uniform noise of +-2^10 units (2^-24 octave) a step against a leak of
  * 1/4096 gives about 1.9 cents RMS with a correlation time of about 2.7 s; a 32-step smoother
  * removes the steps, and the drift is held within +-6 cents. */
 #include "mixer_curve.h"
@@ -341,9 +340,7 @@ static void drift_step(modeldigi_osc_state *s)
         s->drift[v] = limit(s->drift[v] + ((s->wander[v] - s->drift[v]) >> 5), DRIFT_LIMIT);
     }
 }
-#endif
 
-#ifdef MODELDIGI_ANALOG
 /* The mixer, a circuit-derived model with a chosen drive (docs/analog.md): the sources' sum, as the
  * filter's input pair receives it, tanh(drive * s) / drive in engine units, unity for small
  * signals; then a 5 Hz DC blocker, since compressing asymmetric pulses shifts their mean. The bank's
@@ -379,7 +376,6 @@ static int32_t dc_block(modeldigi_osc_state *s, int32_t x)
     s->dc_in = x;
     return s->dc_out;
 }
-#endif
 
 void modeldigi_osc_init(modeldigi_osc_state *state)
 {
@@ -389,14 +385,12 @@ void modeldigi_osc_init(modeldigi_osc_state *state)
     }
     for (unsigned k = 0; k < TAPS - 1; ++k)
         state->tail[k] = 0;
-#ifdef MODELDIGI_ANALOG
     state->frame = 0;
     state->seed = 2654435761u * ++drift_instances | 1;
     for (unsigned v = 0; v < 3; ++v)
         state->wander[v] = state->drift[v] = 0;
     state->mix_in = state->mix_residue = 0;
     state->dc_in = state->dc_out = 0;
-#endif
 }
 
 void modeldigi_osc_render(modeldigi_osc_state *state, const modeldigi_osc_params *params,
@@ -418,17 +412,17 @@ void modeldigi_osc_render(modeldigi_osc_state *state, const modeldigi_osc_params
     for (size_t done = 0; done < frames;) {
         unsigned n = frames - done < 32 ? (unsigned)(frames - done) : 32;
         uint32_t base[3] = { step[0], step[1], step[2] };
-#ifdef MODELDIGI_ANALOG
-        /* Chunks follow the drift grid, so the split of a render does not change its output. */
-        unsigned left = DRIFT_FRAMES - state->frame % DRIFT_FRAMES;
-        if (left == DRIFT_FRAMES)
-            drift_step(state);
-        if (n > left)
-            n = left;
-        for (unsigned v = 0; v < 3 && params->analog; ++v)
-            base[v] = modulate(step[v], state->drift[v] >> 8);
-        state->frame += n;
-#endif
+        if (params->analog) {
+            /* Count only analog frames, so off freezes drift and any render split is exact. */
+            unsigned left = DRIFT_FRAMES - state->frame % DRIFT_FRAMES;
+            if (left == DRIFT_FRAMES)
+                drift_step(state);
+            if (n > left)
+                n = left;
+            for (unsigned v = 0; v < 3; ++v)
+                base[v] = modulate(step[v], state->drift[v] >> 8);
+            state->frame += n;
+        }
         int32_t w[32 + TAPS - 1], octaves[32];   /* w[k]: sample k - EDGE_HALF of this block */
         for (unsigned k = 0; k < TAPS - 1; ++k)
             w[k] = state->tail[k];
@@ -439,7 +433,6 @@ void modeldigi_osc_render(modeldigi_osc_state *state, const modeldigi_osc_params
             params->osc3_control, w, n);
         for (unsigned v = 0; v < 2; ++v)
             run(&c[v], &state->phase[v], &state->last[v], base[v], modulated ? octaves : 0, 0, 0, 0, w, n);
-#ifdef MODELDIGI_ANALOG
         if (params->analog) {
             for (unsigned i = 0; i < n; ++i)
                 output[done + i] = dc_block(state, mixer(state, w[i]));
@@ -449,10 +442,6 @@ void modeldigi_osc_render(modeldigi_osc_state *state, const modeldigi_osc_params
                 output[done + i] = w[i];
             state->mix_in = state->mix_residue = state->dc_in = state->dc_out = 0;
         }
-#else
-        for (unsigned i = 0; i < n; ++i)
-            output[done + i] = w[i];
-#endif
         for (unsigned k = 0; k < TAPS - 1; ++k)
             state->tail[k] = w[n + k];
         done += n;

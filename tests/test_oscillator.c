@@ -25,7 +25,7 @@ static void splitting(void)
         modeldigi_osc_params p = bank(shape);
         modeldigi_osc_state a, b;
         int32_t whole[257], parts[257];
-        modeldigi_osc_init(&a); modeldigi_osc_init(&b);
+        modeldigi_osc_init(&a); b = a;
         modeldigi_osc_state before = a;
         modeldigi_osc_render(&a, &p, NULL, 0);
         assert(!memcmp(&a, &before, sizeof a));

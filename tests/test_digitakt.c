@@ -94,6 +94,7 @@ static void render_lifetime(void)
     modeldigi_digitakt_render(samples);
     for (int track = 0; track < 2; ++track) {
         defaults(live_values[track]);
+        live_values[track][MD_ANLG] = 0;   /* compare deterministic clean output */
         fw_render_machine[track] = 42;
         modeldigi_osc_init(&direct[track]);
         /* All three oscillators sound. */

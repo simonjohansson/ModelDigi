@@ -9,10 +9,12 @@ int32_t cost_output[32];
 #define HZ(x) ((uint32_t)((x) * 65536.0))
 
 /* 0 one saw; 1 three sources; 2 slow modulation; 3 audio-rate feedback FM; 4 high narrow pulses;
- * 5 saw feedback FM. */
+ * 5 saw feedback FM; 6-11 repeat these with Analog on. */
 void cost_setup(int scenario)
 {
     modeldigi_osc_params p = {0};
+    p.analog = scenario >= 6;
+    scenario %= 6;
     p.frequency_q16_16[0] = HZ(220);
     p.frequency_q16_16[1] = HZ(330.5);
     p.frequency_q16_16[2] = HZ(441.25);
@@ -52,7 +54,7 @@ void cost_block(void)
 }
 
 /* Random parameters for equivalence checks: every shape plus an invalid one, frequencies from below
- * 1/16 Hz to above 20 kHz on a rough log scale, any level and depth, both switches. */
+ * 1/16 Hz to above 20 kHz on a rough log scale, any level and depth, all switches. */
 void cost_random(uint32_t seed)
 {
     uint32_t x = seed * 2654435761u + 1;
@@ -68,6 +70,7 @@ void cost_random(uint32_t seed)
     p.modulation_enabled = NEXT & 1;
     p.osc3_control = NEXT & 1;
     p.modulation_depth_q16_16 = NEXT % 160000;
+    p.analog = NEXT & 1;
 #undef NEXT
     cost_params = p;
     modeldigi_osc_init(&cost_state);

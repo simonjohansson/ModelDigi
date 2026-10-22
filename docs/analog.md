@@ -1,15 +1,20 @@
 # Analog character
 
-ModelDigi's device firmware adds an analog character layer to the oscillator
-bank: oscillator drift and a Model D–style mixer. Host tests, the reference and alias checks, the cost tools and the
-emulator build the bank without it, so the clean oscillators remain what is
-compared with the Model D reference. With the layer compiled out, the engine
-is bit-identical to the clean engine.
+ModelDigi's oscillator bank includes an analog character layer: oscillator
+drift and a Model D–style mixer. Firmware, emulator, host measurements and
+cost tools use the same compiled engine. Reference and alias checks turn
+Analog off, so the clean oscillators remain what is compared with the Model D
+reference.
 
 Each sound's Analog switch, on by default, turns the layer on or off. Off
-renders the clean engine exactly; drift keeps wandering unheard, so turning the
-layer back on resumes it. The mixer restarts as it does for a new bank, so
-switching can click when levels are high.
+renders the clean engine exactly and freezes the drift clock and random state.
+Turning the layer back on resumes that stored drift. The mixer restarts as it
+does for a new bank, so switching can click when levels are high.
+
+The emulator and device use the same firmware image. Turn Analog off for
+clean firmware comparisons instead of building a separate image. Host tests
+verify that off freezes drift and that retained analog state cannot affect
+the clean output.
 
 ## Oscillator drift
 
@@ -31,8 +36,9 @@ measurement of a particular unit. Each instance draws its own noise, so two
 ModelDigi tracks also drift apart. Drift moves an oscillator's base pitch;
 modulation and CONTROL feedback act on top of it.
 
-The wander advances on a fixed grid of 32 output frames counted from the
-bank's start, so splitting a render differently never changes its output.
+The wander advances on a fixed grid of 32 Analog-on output frames counted from
+the bank's start, pausing while off, so splitting a render differently never
+changes its output.
 Drift costs a few operations per oscillator per 32 frames.
 
 ## Mixer
@@ -75,7 +81,7 @@ on.
 ## Verification
 
 The clean engine carries every frozen instrument, alias and modulation check.
-The analog build is checked against its own declared behaviour: drift stays
+Analog on is checked against its own declared behaviour: drift stays
 within its bound, has the declared size and correlation time, wanders
 independently per oscillator and per instance, sets each block's actual pitch
 step to within 0.1 cent, and keeps renders split-invariant. The mixer curve is

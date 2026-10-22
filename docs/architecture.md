@@ -111,6 +111,7 @@ and restores the firmware's MAC mode and matches the portable C exactly. Modulat
 separate pre-level control tap, refreshed every sample,
 preserving duty-dependent mean pitch and conditional self-feedback. Init sets
 phases to 0, 1/3 and 2/3; notes, muting and selector changes do not reset them.
-No second oscillator implementation serves as the sound oracle. The device
-firmware adds an optional [analog character](analog.md) layer on top of this
-clean engine; every check runs the clean engine.
+No second oscillator implementation serves as the sound oracle. The shared
+engine includes an optional [analog character](analog.md) layer selected by
+the runtime Analog toggle. Host measurements and clean firmware comparisons
+turn Analog off; this also freezes drift.

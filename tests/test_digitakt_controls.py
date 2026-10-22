@@ -105,6 +105,10 @@ def main():
         screen('machine-menu')
         tap('YES')
         assert uc.mem_read(sound() + 126, 1) == bytes([42])
+        assert stored()[46] == 127 << 8
+        send([0xb0, 24, 0])
+        assert stored()[46] == 0
+        report['checks'].append('Analog defaults on and switches off through native MIDI for clean checks')
         screen('osc-defaults')
         other = bytes(uc.mem_read(sound(1), 162))
         tuning = {}

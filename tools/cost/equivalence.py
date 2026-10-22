@@ -1,6 +1,6 @@
 """Check the ColdFire build's hand-written assembly against its portable C under digiemu.
 
-Builds the engine with and without assembly (MODELDIGI_NO_ASM), runs the six cost scenarios and a
+Builds the engine with and without assembly (MODELDIGI_NO_ASM), runs both Analog settings and a
 set of randomized parameter sets block by block, and requires every output sample and the whole
 bank state to match after every block. A copy with one arithmetic shift in the assembly made
 logical must differ, so the comparison is known to detect a change. Run from the repository root:
