@@ -106,15 +106,14 @@ These are fitted behavioral approximations. The three pulses use their
 unipolar convention directly. Span and both mean definitions, rather than
 these approximate coefficients alone, are the acceptance targets.
 
-The C control path uses these shapes and biases with no further gain. An
-earlier refinement (triangle ×1.0010, saws ×1.0037, fitted to open-loop amounts
-0.1/0.5) was removed because it compensated a measurement condition rather
-than a control-path property. The frozen span estimator's fixed window holds a
-non-integer number of source cycles, so a ramp's 5th–95th percentile span
-depends on where the source cycle starts: by up to about 8.5 cents at amount 1.
-The engine's default start phase reads ramp spans about 0.45% low. The gain
-cancelled that and pushed feedback cases, which read high at that phase,
-towards the 3-cent limit.
+The C control path uses these shapes and biases with no further gain. A
+per-shape gain fitted to the open-loop spans would compensate a measurement
+condition rather than a control-path property. The frozen span estimator's
+fixed window holds a non-integer number of source cycles, so a ramp's
+5th–95th percentile span depends on where the source cycle starts: by up to
+about 8.5 cents at amount 1. From the engine's default start phase ramp spans
+read about 0.45% low, while feedback cases read high; a gain would hide the
+first and push the second towards the 3-cent limit.
 
 Each recording exposes its own source phase through its measured pitch trace.
 Modulation acceptance therefore starts oscillator 3 at the phase that
@@ -215,7 +214,6 @@ numeric reruns. Portable DSP tests consume the committed numbers without
 the WAVs. An explicit local comparison must verify the private evidence hashes
 and fail clearly when recordings are missing; it must not regenerate targets.
 
-The approved C-only interface now supports host rendering and comparison against
-this bundle. Python performs measurements and static Fourier checks; it does
-not implement an alternate oscillator. Device controls, saved meanings and
-machine identity are later gates.
+The C engine renders on the host for comparison against this bundle. Python
+performs measurements and static Fourier checks; it does not implement an
+alternate oscillator.

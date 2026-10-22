@@ -98,9 +98,9 @@ reserve in its worst tested case.
 links it with a small driver at a fixed address, and times six fixed
 scenarios under digiemu's cycle model, which uses the processor manual's
 timing tables and assumes zero-wait memory. It also reports any 64-bit
-runtime helper the engine would import. The historical stock-render estimate is
-about 100,000 of the 166,700 cycles in each period at 250 MHz, so a 10%
-render margin leaves about 50,000 cycles for one instance or 25,000 for each
+runtime helper the engine would import. Its nominal stock-render estimate is
+about 100,000 of the 166,700 cycles in each period at 250 MHz, so the tool
+reports against a nominal 50,000 cycles for one instance or 25,000 for each
 of two. These are estimates; the firmware check's timing stage and the device
 remain the authority. The task needs the cross-toolchain and a bootstrapped
 digiemu.
@@ -113,6 +113,13 @@ profiled execution to match every unprofiled call's cycles and output/state.
 The attributed total must equal the cycle clock, with no decoder mismatches.
 The report and debug images stay under ignored `out/profile-<factor>x/`.
 These are isolated engine estimates, not complete-firmware or physical-device timing.
+
+`mise run cost:equivalence` builds the engine for ColdFire with and without
+its hand-written assembly and runs both under digiemu: the six scenarios and
+a set of randomized parameter sets, comparing every output sample and the
+whole bank state after every block. A copy with one deliberately altered
+instruction must differ, so the comparison is known to detect a change. Run
+it after any change to the engine's assembly or the C it mirrors.
 
 On hardware, time engine calls separately from the complete firmware render.
 The change from a zero-output baseline can include native processing and
@@ -186,7 +193,7 @@ the recordings do not isolate mixer transfer or match free-running phases.
 
 ## Retained device recordings
 
-Analyse a retained oscillator 1 USB capture without connecting to hardware:
+Analyse a retained single-oscillator USB capture without connecting to hardware:
 
 ```sh
 mise run analyse:device:oscillator /absolute/path/to/capture --out out/device-analysis
@@ -201,7 +208,7 @@ firmware, companion revisions, native settings and event/probe frame indices
 beside the recordings. Capture control and restoration are deliberately separate
 from this offline command.
 
-Waveform batches contain all six oscillator 1 shapes at each pitch and repeated
+Waveform batches contain all six shapes of one oscillator at each pitch and repeated
 saw windows in one continuous recording. One frequency and absolute sample
 positions preserve their shared phase origin. Signed ratios to the same
 harmonic of the saw cancel a stable linear output path; they do not identify
@@ -239,21 +246,19 @@ switch positions. It preserves the emulator's MIDI semaphore guard and paces
 input to its UART model; it does not establish burst throughput or USB MIDI
 behavior. The check neither builds firmware nor transfers it to a device.
 
-The pinned machine-pages 1.2.1 keeps in-place parameter edits packed in the
-existing version-4 sound record. Ordinary builds include this fix; no local
-companion replacement is needed. Control acceptance must compare the actual
-working saved record with the live sound, in addition to a fresh codec
-round-trip. Existing damaged records require a complete re-save after their
-values have been restored. Keep the exact dependency, image and readback
-hashes with persistence evidence.
+ModelDigi needs machine-pages 1.2.1 or newer, which keeps in-place parameter
+edits packed in the version-4 sound record. Control acceptance must compare
+the actual working saved record with the live sound, in addition to a fresh
+codec round-trip. Keep the exact dependency, image and readback hashes with
+persistence evidence.
 
 Host tests verify oscillator behavior and adapter isolation, not complete firmware execution.
 SDK lint and firmware packaging verify linking and patch constraints, not
 hardware operation. Opening the emulator is separate from host tests.
-Physical acceptance remains scoped to the retained device recordings. Complete
-performance budget, broader saved-sound compatibility, audio-rate FM
-quality and fidelity beyond the declared reference subset remain outstanding.
-The emulator task runs the full bank.
+Physical acceptance is scoped to the retained device recordings. Two-instance
+capacity, broader saved-sound compatibility, audio-rate FM quality and
+fidelity beyond the declared reference subset are not established by these
+checks.
 
 Stock firmware, built mods, custom firmware, emulator images and raw
 research stay local and ignored. Keep dependency revisions pinned; consult
