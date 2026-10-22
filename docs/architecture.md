@@ -113,4 +113,5 @@ preserving duty-dependent mean pitch and conditional self-feedback. Init sets
 phases to 0, 1/3 and 2/3; notes, muting and selector changes do not reset them.
 No second oscillator implementation serves as the sound oracle. The device
 firmware adds an optional [analog character](analog.md) layer on top of this
-clean engine; every check runs the clean engine.
+clean engine. Host measurements use the clean engine; firmware comparisons
+select it by turning Analog off in the same image used for playing.

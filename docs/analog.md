@@ -1,15 +1,19 @@
 # Analog character
 
 ModelDigi's device firmware adds an analog character layer to the oscillator
-bank: oscillator drift and a Model D–style mixer. Host tests, the reference and alias checks, the cost tools and the
-emulator build the bank without it, so the clean oscillators remain what is
-compared with the Model D reference. With the layer compiled out, the engine
-is bit-identical to the clean engine.
+bank: oscillator drift and a Model D–style mixer. Host measurements, the reference
+and alias checks, and the cost tools build the bank without it, so the clean
+oscillators remain what is compared with the Model D reference. With the layer
+compiled out, the engine is bit-identical to the clean engine.
 
 Each sound's Analog switch, on by default, turns the layer on or off. Off
 renders the clean engine exactly; drift keeps wandering unheard, so turning the
 layer back on resumes it. The mixer restarts as it does for a new bank, so
 switching can click when levels are high.
+
+The emulator and device use the same firmware image. Turn Analog off for
+clean firmware comparisons instead of building a separate image. Host tests
+also verify that Analog off matches the compile-time clean build byte for byte.
 
 ## Oscillator drift
 

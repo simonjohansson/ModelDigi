@@ -149,55 +149,20 @@ dir=out/os1.54
 python -m elekloader.patch --stock "$ELEKLOADER_STOCK" --mod "$dir/"core-*.elemod --mod "$dir/"machine-pages-*.elemod --mod "$dir/"modeldigi-*.elemod --out out/Digitakt_ModelDigi.syx --version "$FW_VERSION"
 '''
 
-[tasks."build:digitakt:clean"]
-description = "Build ModelDigi without its analog character, for emulator checks"
-depends = ["build:deps:digitakt"]
-run = '''
-set -eu
-stock="$ELEKLOADER_STOCK"
-src=out/clean
-rm -rf "$src"
-mkdir -p "$src/machines"
-cp -R machines/digitakt "$src/machines/"
-ln -s ../../dsp "$src/dsp"
-python - "$src/machines/digitakt/mod.json" <<'PY'
-import json, sys
-p = sys.argv[1]; mod = json.load(open(p))
-mod['cflags'] = [f for f in mod.get('cflags', []) if f != '-DMODELDIGI_ANALOG']
-json.dump(mod, open(p, 'w'), indent=1)
-PY
-dir=out/os1.54-clean
-mkdir -p "$dir"
-rm -f "$dir/"*.elemod
-python -m elekloader.sdk.build "$src/machines/digitakt" --stock "$stock" --out "$dir"
-for mod in "$dir/"*.elemod; do
-  case "$mod" in *-os1.54.elemod) ;; *) mv "$mod" "${mod%.elemod}-os1.54.elemod" ;; esac
-done
-python -m elekloader.lint "$dir/"modeldigi-*.elemod --stock "$stock" --with out/os1.54/core-*.elemod --with out/os1.54/machine-pages-*.elemod
-'''
-
-[tasks."firmware:digitakt:clean"]
-description = "Package the selected stock OS with ModelDigi without its analog character"
-depends = ["build:digitakt:clean"]
-run = '''
-set -eu
-python -m elekloader.patch --stock "$ELEKLOADER_STOCK" --mod out/os1.54/core-*.elemod --mod out/os1.54/machine-pages-*.elemod --mod out/os1.54-clean/modeldigi-*.elemod --out out/Digitakt_ModelDigi-clean.syx --version "$FW_VERSION"
-'''
-
 [tasks.emu]
 description = "Build firmware and open its emulator"
 depends = ["emu:digitakt", "emu:digitone"]
 
 [tasks."emu:digitakt"]
-description = "Prepare the clean custom firmware in digiemu and open its panel"
-depends = ["firmware:digitakt:clean"]
+description = "Prepare the custom firmware in digiemu and open its panel"
+depends = ["firmware:digitakt"]
 dir = "vendor/digiemu"
 run = '''
 set -eu
 version=$(printf %s "$FW_VERSION" | tr 'A-Z' 'a-z' | tr -c 'a-z0-9.' '-')
-hash=$(shasum -a 256 "{{config_root}}/out/Digitakt_ModelDigi-clean.syx" | cut -c1-8)
+hash=$(shasum -a 256 "{{config_root}}/out/Digitakt_ModelDigi.syx" | cut -c1-8)
 fw="$DIGIEMU_HOME/firmware/dt1-$version-$hash"
-uv run --python "$(mise which python)" python -m emu.portable --add "{{config_root}}/out/Digitakt_ModelDigi-clean.syx" --yes
+uv run --python "$(mise which python)" python -m emu.portable --add "{{config_root}}/out/Digitakt_ModelDigi.syx" --yes
 uv run --python "$(mise which python)" python -m emu.portable --worker panel "$fw"
 '''
 
