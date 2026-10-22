@@ -4,9 +4,7 @@ Instrument photograph: [Sweetwater](https://www.sweetwater.com/store/detail/Mini
 
 # ModelDigi
 
-An experimental Model D–style oscillator synth for the **Digitakt mk1**, and
-a first step toward a Minimoog Model D clone. Play it from the Digitakt's
-sequencer and shape its sound with the track's existing filter, amp and effects.
+A Model D–style oscillator section for the **Digitakt mk1**.
 
 ## What works today
 
@@ -38,7 +36,7 @@ requirement before testing saved sounds.
 ## CPU use
 
 **ModelDigi is a CPU-heavy mod.** It generates its waveforms in real time and
-smooths every waveform edge to keep unwanted digital tones (aliasing) low.
+smooths every waveform edge to reduce aliasing.
 Pitch modulation, and especially many sharp edges at high pitches, add work.
 This processing shares the Digitakt's CPU with its other tracks and effects.
 
