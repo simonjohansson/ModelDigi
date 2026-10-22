@@ -25,3 +25,37 @@ jobs:
         run: mise run test
       - name: Portable measurement, spectral and frozen slow-modulation checks
         run: mise run test:oscillators --modulation
+
+  firmware:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      # Elektron's public OS1.54 download; only the .syx inside is pinned, by its hash.
+      STOCK_URL: https://www.elektron.se/wp-content/uploads/2026/10/Digitakt_OS1.54_dist.zip
+      STOCK_SHA256: f78ba80fa7b1da5fb0e1ff61ad61e9e71aafe79f4364fc49679f3651353e3cf6
+    steps:
+      - uses: actions/checkout@v4
+      # Stock firmware is Elektron's: it is cached for this repository's runs, never committed or uploaded.
+      - name: Restore stock Digitakt OS1.54
+        id: stock
+        uses: actions/cache@v4
+        with:
+          path: firmware/Digitakt_OS1.54.syx
+          key: digitakt-os1.54-${{ env.STOCK_SHA256 }}
+      - name: Download stock Digitakt OS1.54 from Elektron
+        if: steps.stock.outputs.cache-hit != 'true'
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/os.zip" "$STOCK_URL"
+          mkdir -p firmware
+          unzip -j -o "$RUNNER_TEMP/os.zip" Digitakt_OS1.54.syx -d firmware
+      - name: Verify stock firmware
+        run: echo "$STOCK_SHA256  firmware/Digitakt_OS1.54.syx" | sha256sum -c -
+      - uses: jdx/mise-action@v3
+      - name: Cross toolchain, submodules and emulator
+        run: mise bootstrap
+      - name: Build and lint the Digitakt mod
+        run: mise run build:digitakt
+      - name: Package the firmware
+        run: mise run firmware:digitakt
+      - name: Emulator control checks
+        run: mise run test:firmware:controls --firmware out/Digitakt_ModelDigi.syx --out out/controls

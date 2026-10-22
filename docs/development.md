@@ -102,8 +102,11 @@ against static Fourier identities with the edge kernel's known response and dela
 separately. This grid is not an audio-rate FM alias qualification.
 
 GitHub Actions runs the host mechanics, portable spectral/measurement checks
-and all frozen slow-modulation cases through mise. It needs neither private
-recordings nor stock firmware.
+and all frozen slow-modulation cases through mise, without private recordings.
+A second job downloads the stock OS1.54 from Elektron's public support page,
+checks the `.syx` against its pinned SHA-256 and keeps it in the repository's
+Actions cache. It then builds and lints the mod, packages the firmware and runs
+the emulator control checks. The firmware is never committed or uploaded.
 
 Cost reductions may change output when every frozen instrument tolerance and
 the spectral limit still pass. The complete-firmware render keeps a 10%
