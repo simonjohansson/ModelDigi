@@ -160,6 +160,20 @@ uv run --python "$(mise which python)" python -m emu.portable --add "{{config_ro
 uv run --python "$(mise which python)" python -m emu.portable --worker panel "$fw"
 '''
 
+[tasks.release]
+description = "Build, test and release the Digitakt and Digitone mods"
+depends = ["release:digitakt", "release:digitone"]
+
+[tasks."release:digitakt"]
+description = "Build the machine and release its .elemod for each OS on GitHub as modeldigi-v<version> (machines/digitakt/mod.json's)"
+depends = ["build:digitakt", "test"]
+run = '''
+[ -z "$(git status --porcelain)" ] || { echo "release: commit first, so the release is the source it's tagged on"; exit 1; }
+git fetch -q origin && [ -z "$(git log origin/main..HEAD)" ] || { echo "release: push first"; exit 1; }
+v=$(python -c "import json; print(json.load(open('machines/digitakt/mod.json'))['version'])")
+gh release create "modeldigi-v$v" out/os*/modeldigi-$v*.elemod --target "$(git rev-parse HEAD)" --title "ModelDigi $v" --generate-notes
+'''
+
 [tasks."build:deps:digitone"]
 description = "Placeholder: Digitone dependencies"
 run = 'echo "Digitone support is not implemented; no artifacts produced"'
@@ -178,3 +192,8 @@ run = 'echo "Digitone support is not implemented; no artifacts produced"'
 description = "Placeholder: Digitone emulator"
 depends = ["firmware:digitone"]
 run = 'echo "Digitone support is not implemented; no panel opened"'
+
+[tasks."release:digitone"]
+description = "Placeholder: Digitone release"
+depends = ["build:digitone"]
+run = 'echo "Digitone support is not implemented; nothing published"'
