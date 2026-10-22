@@ -62,19 +62,21 @@ class MeasurementTests(unittest.TestCase):
         self.assertLess(result["time_mean_pitch_cents"], -2)
         self.assertLess(abs(result["modulation_hz"] - 2), .01)
 
-    def test_refinement_rejects_mismatched_or_divergent_reports(self):
+    def test_timing_drift_is_reported_only_when_measured(self):
         targets = json.loads(checks.TARGETS.read_text())
-        rows = [dict(shape=r["shape"], amount=r["amount"], feedback=r["feedback"], passed=True,
-                     measured=dict(pitch_span_cents=1., cents_of_mean_frequency=2., time_mean_pitch_cents=3.))
-                for r in targets["modulation"]]
-        base = dict(target_sha256="target", source_sha256="source", factor=8,
-                    modulation=rows, static=[], alias=[], frequencies=[])
-        refined = json.loads(json.dumps(base)); refined["factor"] = 16
-        self.assertTrue(checks.refinement_checks(refined, base, targets)["passed"])
-        refined["modulation"][0]["measured"]["cents_of_mean_frequency"] += .21
-        self.assertFalse(checks.refinement_checks(refined, base, targets)["passed"])
-        refined["source_sha256"] = "different"
-        with self.assertRaises(ValueError): checks.refinement_checks(refined, base, targets)
+        row = next(r for r in targets["modulation"] if r["feedback"])
+        one = dict(targets, modulation=[row])
+        phases = checks.source_phases(targets)
+        fresh = dict(phases[row["source_sha256"]], initial_lag_ms=0, end_lag_ms=-7,
+                     candidate_rate_difference_percent=-0.5)
+        with tempfile.TemporaryDirectory() as name:
+            [historical] = checks.modulation_checks(ROOT / "out/render", Path(name), one, phases)
+            [measured] = checks.modulation_checks(ROOT / "out/render", Path(name), one, phases, dict(cases=[fresh]))
+        self.assertNotIn("measured_timing", historical)
+        self.assertEqual(historical["committed_timing"]["end_lag_ms"], phases[row["source_sha256"]]["end_lag_ms"])
+        self.assertIsNone(checks.timing_summary([historical]))
+        self.assertEqual(measured["measured_timing"]["end_lag_ms"], -7)
+        self.assertIn("-0.500% modulation rate, -7 ms", checks.timing_summary([historical, measured]))
 
     def test_actual_wrong_sign_and_width_fail_frozen_ratios(self):
         targets = json.loads(checks.TARGETS.read_text())

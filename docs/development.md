@@ -97,10 +97,12 @@ Cost reductions may change output when every frozen instrument tolerance and
 the spectral limit still pass. The complete-firmware render keeps a 10%
 reserve in its worst tested case.
 
-`mise run cost [factor ...]` estimates the ColdFire cost of one bank per
+`mise run cost` estimates the ColdFire cost of one bank per
 32-frame block. It compiles the actual engine with the SDK's Digitakt flags,
 links it with a small driver at a fixed address, and times six fixed
-scenarios with Analog off and on in the same image under digiemu's cycle model,
+scenarios with Analog off and on in the same image, plus the most edges a
+sound can reach (three full-level triangle/saw combinations at the 20 kHz clamp with the
+deepest oscillator-3 feedback, Analog on), under digiemu's cycle model,
 which uses the processor manual's timing tables and assumes zero-wait memory.
 It also reports any 64-bit
 runtime helper the engine would import. Its nominal stock-render estimate is
@@ -116,12 +118,12 @@ cycles to basic blocks and source instructions, including inlined helpers.
 Its checks require debug information to preserve the executable image and
 profiled execution to match every unprofiled call's cycles and output/state.
 The attributed total must equal the cycle clock, with no decoder mismatches.
-The report and debug images stay under ignored `out/profile-<factor>x/`.
+The report and debug images stay under ignored `out/profile/`.
 These are isolated engine estimates, not complete-firmware or physical-device timing.
 
 `mise run cost:equivalence` builds the engine for ColdFire with and without
-its hand-written assembly and runs both under digiemu: the six scenarios with
-Analog off and on, and a set of randomized parameter sets, comparing every output sample and the
+its hand-written assembly and runs both under digiemu: the fixed cost
+scenarios and a set of randomized parameter sets, comparing every output sample and the
 whole bank state after every block. A copy with one deliberately altered
 instruction must differ, so the comparison is known to detect a change. Run
 it after any change to the engine's assembly or the C it mirrors.
@@ -206,7 +208,8 @@ mise run analyse:device:oscillator /absolute/path/to/capture --out out/device-an
 
 The capture directory contains stereo 48 kHz PCM24 audio and its capture log.
 Analysis rejects changed audio, missing frames, reported input overflows,
-failed restoration and invalid measurement windows. Native processed values
+failed restoration, invalid measurement windows and captures whose decoded
+parameters show Analog on; the report states whether Analog off was recorded. Native processed values
 must be decoded through the actual C control adapter during capture; Python
 measures audio and does not supply another sound engine. Retain the exact
 firmware, companion revisions, native settings and event/probe frame indices

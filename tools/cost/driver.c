@@ -9,10 +9,23 @@ int32_t cost_output[32];
 #define HZ(x) ((uint32_t)((x) * 65536.0))
 
 /* 0 one saw; 1 three sources; 2 slow modulation; 3 audio-rate feedback FM; 4 high narrow pulses;
- * 5 saw feedback FM; 6-11 repeat these with Analog on. */
+ * 5 saw feedback FM; 6-11 repeat these with Analog on; 12 the most edges: three full-level tri/saws
+ * at the 20 kHz clamp, oscillator 3 feeding back at the deepest decoded depth, Analog on. */
 void cost_setup(int scenario)
 {
     modeldigi_osc_params p = {0};
+    if (scenario == 12) {
+        for (unsigned v = 0; v < 3; ++v) {
+            p.frequency_q16_16[v] = HZ(20000);
+            p.waveform[v] = 1;
+            p.level[v] = 65535;
+        }
+        p.modulation_enabled = p.osc3_control = p.analog = true;
+        p.modulation_depth_q16_16 = 98892;
+        cost_params = p;
+        modeldigi_osc_init(&cost_state);
+        return;
+    }
     p.analog = scenario >= 6;
     scenario %= 6;
     p.frequency_q16_16[0] = HZ(220);

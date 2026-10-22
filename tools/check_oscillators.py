@@ -339,7 +339,9 @@ def phase_derivation_checks(derived):
     return rows
 
 
-def modulation_checks(renderer, folder, targets, phases):
+def modulation_checks(renderer, folder, targets, phases, derived=None):
+    """derived: phases freshly aligned to the retained recordings, whose timing is then measured."""
+    fresh = {case["source_sha256"]: case for case in derived["cases"]} if derived else {}
     rows = []
     baseline = round(targets["extraction"]["modulation_carrier_baseline_hz"]*65536)/65536
     for row in targets["modulation"]:
@@ -348,11 +350,27 @@ def modulation_checks(renderer, folder, targets, phases):
         y = modulation_window(renderer, folder, f"mod-shape{shape}-feedback{int(row['feedback'])}-amount{row['amount']}",
                               row, targets, case["source_phase_at_render_start"])
         measured = slow_modulation(y, baseline)
-        timing = {key: case[key] for key in ("initial_lag_ms", "end_lag_ms", "candidate_rate_difference_percent")}
-        rows.append(dict(shape=shape, amount=row["amount"], feedback=row["feedback"],
-                         source_phase=case["source_phase_at_render_start"], recorded_timing=timing,
-                         **modulation_result(measured, row, targets)))
+        timing = ("initial_lag_ms", "end_lag_ms", "candidate_rate_difference_percent")
+        result = dict(shape=shape, amount=row["amount"], feedback=row["feedback"],
+                      source_phase=case["source_phase_at_render_start"],
+                      committed_timing={key: case[key] for key in timing})
+        if row["source_sha256"] in fresh:
+            result["measured_timing"] = {key: fresh[row["source_sha256"]][key] for key in timing}
+        rows.append(dict(result, **modulation_result(measured, row, targets)))
     return rows
+
+
+def timing_summary(modulation):
+    """Timing drift measured against the recordings in this run, or None when none was measured."""
+    measured = [row for row in modulation if "measured_timing" in row]
+    if not measured:
+        return None
+    worst = max(measured, key=lambda row: abs(row["measured_timing"]["candidate_rate_difference_percent"]))
+    timing = worst["measured_timing"]
+    return (f"Timing drift against recordings (reported, not a target): up to "
+            f"{timing['candidate_rate_difference_percent']:+.3f}% modulation rate, "
+            f"{timing['end_lag_ms']} ms at the window end "
+            f"(shape {worst['shape']}, amount {worst['amount']}, feedback {worst['feedback']})")
 
 
 def modulation_result(measured, expected, targets):
@@ -381,29 +399,7 @@ def phase_checks(renderer, folder, targets):
     return results
 
 
-def refinement_checks(current, previous, targets):
-    if current["target_sha256"] != previous["target_sha256"] or current["source_sha256"] != previous["source_sha256"]:
-        raise ValueError("Refinement must use the same targets and C source")
-    if current["factor"] != 2*previous["factor"]:
-        raise ValueError("Refinement must double the internal rate")
-    if len(current["modulation"]) != 48 or len(previous["modulation"]) != 48:
-        raise ValueError("Refinement requires every frozen slow-modulation case")
-    if not all(row["passed"] for report in (current, previous) for section in ("static", "alias", "frequencies", "modulation") for row in report[section]):
-        raise ValueError("Refinement inputs must independently pass their targets")
-    key = lambda row: (row["shape"], row["amount"], row["feedback"])
-    before = {key(row): row for row in previous["modulation"]}
-    if len(before) != 48 or set(before) != {key(row) for row in current["modulation"]}:
-        raise ValueError("Refinement case settings differ")
-    limits = dict(pitch_span_cents=targets["tolerances"]["modulation_span_cents"]/10,
-                  cents_of_mean_frequency=targets["tolerances"]["modulation_cents_of_mean_frequency"]/10,
-                  time_mean_pitch_cents=targets["tolerances"]["modulation_time_mean_pitch_cents"]/10)
-    differences = {name: max(abs(row["measured"][name] - before[key(row)]["measured"][name]) for row in current["modulation"]) for name in limits}
-    return dict(maximum_differences=differences, limits=limits,
-                passed=all(differences[name] <= limits[name] for name in limits),
-                scope="Steady slow-modulation summaries; complete-period means retain offsets. Filter phase differs by rate; no samplewise waveform or audio-rate-FM convergence claim.")
-
-
-def static_checks(renderer, folder, targets, factor):
+def static_checks(renderer, folder, targets):
     result = []
     for note in (60, 72, 84, 96, 108):
         hz = round(440 * 2**((note - 69) / 12) * 65536) / 65536
@@ -418,7 +414,7 @@ def static_checks(renderer, folder, targets, factor):
             error = float(np.max(abs(coeff / measured[3] - expected)))
             result.append(dict(note=note, shape=shape, max_complex_error=error,
                                passed=error <= targets["tolerances"]["complex_ratio_absolute"]))
-        expected_fundamental = targets["choices"]["saw_peak"] * abs(response(hz, factor)) / (16 * np.pi)
+        expected_fundamental = targets["choices"]["saw_peak"] * abs(response(hz)) / (16 * np.pi)
         ratio = float(abs(measured[3][0]) / expected_fundamental)
         result.append(dict(note=note, check="saw fundamental level", level_ratio=ratio, passed=abs(ratio - 1) < .001))
     return result
@@ -441,34 +437,6 @@ def fourier(shape, h, choices):
     return 2 * math.sin(np.pi * h * choices["pulse_high_fractions"][shape - 4]) / (np.pi*h)
 
 
-def halfband_coefficients(sections, transition):
-    """Elliptic polyphase halfband allpass coefficients (Valenzuela-Constantinides closed form)."""
-    k = math.tan((1 - 2*transition) * math.pi / 4)**2
-    root = (1 - k*k)**0.25
-    e = 0.5 * (1 - root) / (1 + root)
-    e4 = e**4
-    q = e * (1 + e4*(2 + e4*(15 + 150*e4)))
-    order = 2*sections + 1
-    out = []
-    for c in range(1, sections + 1):
-        num = sum((-1)**i * q**(i*(i + 1)) * math.sin((2*i + 1)*c*math.pi/order) for i in range(40)) * q**0.25
-        den = sum((-1)**i * q**(i*i) * math.cos(2*i*c*math.pi/order) for i in range(1, 40)) + 0.5
-        w2 = (num / den)**2
-        x = math.sqrt((1 - w2*k) * (1 - w2/k)) / (1 + w2)
-        out.append((1 - x) / (1 + x))
-    return out
-
-
-def stage_response(hz, rate):
-    """One decimate-by-two stage at input `rate`: 20 kHz passband, outputs on each pair's second sample."""
-    sections = 6 if rate == 96000 else 3 if rate == 192000 else 2
-    z = np.exp(2j*np.pi*np.asarray(hz, dtype=float)/rate)
-    branches = [np.ones_like(z), np.ones_like(z)]
-    for i, a in enumerate(halfband_coefficients(sections, 0.5 - 2*20000/rate)):
-        branches[i % 2] = branches[i % 2] * (a + z**-2) / (1 + a*z**-2)
-    return 0.5 * (branches[0] + branches[1]/z) * z
-
-
 EDGE_HALF, EDGE_BETA, EDGE_CUTOFF = 6, 5.5, 20500.0
 
 
@@ -484,16 +452,10 @@ def edge_response(hz, rate):
     return out if np.ndim(hz) else out[0]
 
 
-def response(hz, factor):
-    # Independent closed-form filter definition, not the candidate's coefficient array. The
-    # kernel is causal by EDGE_HALF samples of the internal rate: a pure delay.
-    hz_ = np.asarray(hz, dtype=float)
-    gain = edge_response(hz, 48000 * factor) * np.exp(-2j * np.pi * hz_ * EDGE_HALF / (48000 * factor))
-    rate_factor = factor
-    while rate_factor > 1:
-        gain = gain * stage_response(hz, 48000 * rate_factor)
-        rate_factor //= 2
-    return gain
+def response(hz):
+    # Independent closed-form filter definition, not the engine's tables. The kernel is causal
+    # by EDGE_HALF samples: a pure delay.
+    return edge_response(hz, 48000) * np.exp(-2j * np.pi * np.asarray(hz, dtype=float) * EDGE_HALF / 48000)
 
 
 def alias_limit(hz):
@@ -501,7 +463,7 @@ def alias_limit(hz):
     return -60 if hz <= 12000 else -50
 
 
-def alias_checks(renderer, folder, targets, factor):
+def alias_checks(renderer, folder, targets):
     results = []
     for hz in (375, 997, 1500, 3000, 3001, 6000, 7001, 9000, 11003, 12000, 15997, 16000, 19001, 20000):
         for shape in range(7):
@@ -509,7 +471,7 @@ def alias_checks(renderer, folder, targets, factor):
             coeff = np.fft.rfft(y) / len(y)
             expected = np.zeros_like(coeff)
             for h in range(1, 20000 // hz + 1):
-                expected[h*hz] = fourier(shape, h, targets["choices"]) * response(h*hz, factor) / 16
+                expected[h*hz] = fourier(shape, h, targets["choices"]) * response(h*hz) / 16
             # Include harmonic-bin errors too: coherent folded aliases can land there.
             power = np.sum(abs(coeff[20:20001] - expected[20:20001])**2)
             residual = float(10*np.log10(max(float(power / abs(expected[hz])**2), 1e-30)))
@@ -524,7 +486,7 @@ def self_check():
     t = np.arange(48000) / 48000
     c = harmonics(.3 + .2*np.cos(2*np.pi*321.5*t) + .1*np.sin(4*np.pi*321.5*t), 321.5, 2)
     assert np.max(abs(c - [.1, -.05j])) < 1e-12
-    assert abs(response(0, 8) - 1) < 1e-5
+    assert abs(response(0) - 1) < 1e-5
     assert alias_limit(12000) == -60 and alias_limit(12001) == -50
 
 
@@ -532,11 +494,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--renderer", type=Path, default=ROOT / "out/render")
     parser.add_argument("--out", type=Path, default=ROOT / "out/oscillators")
-    parser.add_argument("--factor", type=int, choices=(1, 2, 4, 8, 16), default=1)
     parser.add_argument("--reference-dir", type=Path)
     parser.add_argument("--modulation", action="store_true", help="Also run all frozen slow-modulation cases")
     parser.add_argument("--phase-sweep", action="store_true", help="Probe reverse-saw feedback at 33 carrier/source starts")
-    parser.add_argument("--compare", type=Path, help="Compare slow-modulation summaries with a half-rate report")
     args = parser.parse_args()
     self_check()
     targets = json.loads(TARGETS.read_text())
@@ -545,38 +505,30 @@ def main():
     except (OSError, ValueError) as error:
         raise SystemExit("REFERENCE evidence check failed: " + str(error)) from error
     args.out.mkdir(parents=True, exist_ok=True)
-    static = static_checks(args.renderer.resolve(), args.out, targets, args.factor)
-    alias = alias_checks(args.renderer.resolve(), args.out, targets, args.factor)
+    static = static_checks(args.renderer.resolve(), args.out, targets)
+    alias = alias_checks(args.renderer.resolve(), args.out, targets)
     frequencies = frequency_checks(args.renderer.resolve(), args.out, targets)
     local = local_checks(args.renderer.resolve(), args.out, targets, sources) if sources is not None else []
-    derivation = []
+    derivation, derived = [], None
     if args.modulation and sources is not None:
         derived = derive_source_phases(args.renderer.resolve(), args.out, targets, sources)
         (args.out / "modulation-source-phases.json").write_text(json.dumps(derived, indent=2) + "\n")
         derivation = phase_derivation_checks(derived)
-    modulation = modulation_checks(args.renderer.resolve(), args.out, targets, source_phases(targets)) if args.modulation else []
+    modulation = modulation_checks(args.renderer.resolve(), args.out, targets, source_phases(targets), derived) if args.modulation else []
     phase_sweep = phase_checks(args.renderer.resolve(), args.out, targets) if args.phase_sweep else []
     report = dict(target_sha256=hashlib.sha256(TARGETS.read_bytes()).hexdigest(),
                   renderer_sha256=hashlib.sha256(args.renderer.read_bytes()).hexdigest(),
                   source_sha256=sha256(ROOT / "dsp/oscillator.c"),
-                  factor=args.factor, static=static, alias=alias, frequencies=frequencies, local=local,
+                  static=static, alias=alias, frequencies=frequencies, local=local,
                   source_phase_derivation=derivation, modulation=modulation, phase_sweep=phase_sweep,
                   alias_method="Coherent 1-second spectrum; 20 Hz–20 kHz residual against static Fourier identities with the documented windowed-sinc edge-kernel response, including harmonic-bin errors; 20–24 kHz transition band reported separately",
-                  scope="Static shapes, resolved-frequency inputs and optional slow-modulation summaries; dynamic FM alias/refinement, device cost and firmware integration remain separate")
-    if args.compare:
-        report["refinement"] = refinement_checks(report, json.loads(args.compare.read_text()), targets)
+                  scope="Static shapes, resolved-frequency inputs and optional slow-modulation summaries; dynamic FM alias, device cost and firmware integration remain separate")
     (args.out / "validation.json").write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
     failures = [row for row in static + alias + frequencies + local + derivation + modulation + phase_sweep if not row["passed"]]
-    if args.compare and not report["refinement"]["passed"]:
-        failures.append(report["refinement"])
     for row in failures:
         print("FAIL:", row)
-    if modulation:
-        worst = max(modulation, key=lambda row: abs(row["recorded_timing"]["candidate_rate_difference_percent"]))
-        print(f"Timing drift against recordings (reported, not a target): up to "
-              f"{worst['recorded_timing']['candidate_rate_difference_percent']:+.3f}% modulation rate, "
-              f"{worst['recorded_timing']['end_lag_ms']} ms at the window end "
-              f"(shape {worst['shape']}, amount {worst['amount']}, feedback {worst['feedback']})")
+    if timing_summary(modulation):
+        print(timing_summary(modulation))
     print(f"{'FAIL' if failures else 'PASS'}: {sum('shape' in row for row in static)} frozen signed-shape, {sum('check' in row for row in static)} saw level, {len(alias)} static spectral, {len(frequencies)} frequency, {len(local)} local recording, {len(derivation)} source-phase, {len(modulation)} slow-modulation and {len(phase_sweep)} phase-sweep cases")
     raise SystemExit(bool(failures))
 

@@ -68,8 +68,11 @@ mixer is driven, as on the instrument. Saturating a bright, already
 band-limited signal at 48 kHz would fold new products back as aliasing, so the
 mixer passes its input straight through and averages only the distortion over
 each sample interval (antiderivative anti-aliasing, evaluated by Simpson's
-rule). Off-harmonic energy for a full-level saw is about −60 dB instead of
-−43 dB, and −49 dB for three full-level narrow pulses. A 5 Hz DC blocker
+rule). Measured with drift frozen, off-harmonic energy between 20 Hz and
+20 kHz for one full-level oscillator is about −55 dBc for a saw at 3 kHz,
+−48 dBc for a saw at 7 kHz and −40 dBc for a narrow pulse at 7 kHz, against
+−72 to −82 dBc for the same cases with Analog off. These are measurements, not
+an alias acceptance limit. A 5 Hz DC blocker
 follows, because compressing an asymmetric pulse shifts its mean; it stands in
 for the instrument's later AC coupling. The filter input's own 34 Hz coupling
 (10 µF into 470 Ω) is not applied, as it would thin the lowest notes before the

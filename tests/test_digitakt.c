@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include <assert.h>
 #include <math.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "digitakt-mk1/core3.h"
@@ -20,6 +22,20 @@ void fw_fillrect(void *bmp, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int3
     assert(x1 >= x0 && y1 >= y0 && (colour == 0 || colour == 1));
     for (int y = y0; y <= y1; ++y)
         for (int x = x0; x <= x1; ++x) bitmap[y][x - 1] = (uint8_t)colour;
+}
+const char fw_font5[] = "font5";
+static char text_drawn[8];
+static int32_t text_x, text_y;
+int32_t fw_textf(void *bmp, const void *font, int32_t x, int32_t y, int32_t maxlen, const char *fmt, ...)
+{
+    va_list args;
+    assert(bmp == bitmap && font == fw_font5 && maxlen == -1);
+    va_start(args, fmt);
+    vsnprintf(text_drawn, sizeof text_drawn, fmt, args);
+    va_end(args);
+    text_x = x;
+    text_y = y;
+    return 0;
 }
 extern const struct cm_machine modeldigi_machine;
 extern void modeldigi_digitakt_render(int32_t *blocks);
@@ -296,6 +312,12 @@ static void graphics(void)
     assert(images[2][3][1] && !images[2][13][1]);
     knob(MD_WAV3)->draw(bitmap, 0, 0, 1 << 8, 0);
     assert(bitmap[13][1] && !bitmap[3][1]);
+    /* Range labels use the stock 3 x 5 font, centred in the box. */
+    static const char *const ranges[6] = { "LO", "32'", "16'", "8'", "4'", "2'" };
+    for (int i = 0; i < 6; ++i) {
+        knob(MD_RNG1)->draw(bitmap, 0, 0, i << 8, 0);
+        assert(!strcmp(text_drawn, ranges[i]) && text_y == 6 && text_x == (i == 0 ? 6 : i < 3 ? 5 : 7));
+    }
     knob(MD_CTRL)->draw(bitmap, 0, 0, 63 << 8, 0); memcpy(images[0], bitmap, sizeof bitmap);
     knob(MD_CTRL)->draw(bitmap, 0, 0, 64 << 8, 0); assert(memcmp(images[0], bitmap, sizeof bitmap));
     assert(modeldigi_machine.icon);

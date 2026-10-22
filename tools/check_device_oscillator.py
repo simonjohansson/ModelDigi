@@ -30,11 +30,17 @@ def read_capture(folder):
         raise ValueError('Incomplete capture')
     b = np.frombuffer(data, dtype=np.uint8).reshape(-1, 3).astype(np.int32)
     samples = (((b[:, 0] | b[:, 1] << 8 | b[:, 2] << 16) ^ 0x800000) - 0x800000).reshape(-1, 2) / 2**23
+    decoded = []
     for row in report['segments']:
         if not 0 <= row['start_frame'] < row['end_frame'] <= frames:
             raise ValueError('Window outside captured audio')
         if 'trace' not in row and row['before']['decoded'] != row['after']['decoded']:
             raise ValueError('Parameters changed inside a static window')
+        decoded += [state['decoded'] for state in (row.get('before'), row.get('after'), *row.get('trace', ())) if state]
+    # The analysis compares with the clean engine; captures predating the Analog setting do not record it.
+    if any(d.get('analog') for d in decoded):
+        raise ValueError('Analog was on; capture with Analog off')
+    report['analog'] = 'off' if decoded and all('analog' in d for d in decoded) else 'not recorded'
     return report, samples
 
 
@@ -204,7 +210,7 @@ def main():
                   c_source_sha256=sha256(Path('dsp/oscillator.c')), decoder_source_sha256=sha256(Path('machines/digitakt/controls.c')),
                   verified_reference_recordings=sum(r['count'] for r in targets['source_manifests']) if files else 0,
                   verified_reference_unique_hashes=len(files),
-                  firmware_sha256=report['firmware_sha256'], observation='Digitakt USB stereo after native processing',
+                  firmware_sha256=report['firmware_sha256'], analog=report['analog'], observation='Digitakt USB stereo after native processing',
                   method=('one common frequency from repeated saws; no independent waveform phase or gain fit'
                           if report['mode'] == 'waves' else 'endpoint measurements against actual C-decoded native parameters'),
                   muted=[], peak_channels=abs(audio).max(axis=0).tolist(),

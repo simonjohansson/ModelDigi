@@ -23,7 +23,5 @@ jobs:
         run: git submodule update --init vendor/elekloader
       - name: C mechanics and device isolation
         run: mise run test
-      - name: Portable measurement and spectral checks
-        run: mise run test:oscillators
-      - name: Frozen slow-modulation cases
-        run: mise run test:modulation
+      - name: Portable measurement, spectral and frozen slow-modulation checks
+        run: mise run test:oscillators --modulation

@@ -89,23 +89,18 @@ int32_t modeldigi_draw_wave3(void *bmp, int32_t x, int32_t y, int32_t value, int
 int32_t modeldigi_draw_range(void *bmp, int32_t x, int32_t y, int32_t value, int32_t flag)
 {
     static const char *const labels[] = {"LO", "32'", "16'", "8'", "4'", "2'"};
-    static const char letters[] = "123468LO'";
-    static const uint16_t glyphs[] = {0x2c97, 0x62a7, 0x628e, 0x5bc9, 0x39ef, 0x7bef, 0x4927, 0x7b6f, 0x2400};
     const char *text = labels[position(value, 5)];
     int length = text[2] ? 3 : 2;
+    /* The stock value boxes' 3 x 5 font is proportional: the apostrophe takes 2 columns, not 4. */
+    int width = 4 * length - 1 - (text[length - 1] == '\'' ? 2 : 0);
     uint32_t rows[17];
     clear(rows);
     (void)flag;
     box(rows, 0, 4, 16, 12);
-    for (int c = 0; c < length; ++c) {
-        int k = 0;
-        while (letters[k] != text[c]) ++k;
-        for (int r = 0; r < 5; ++r)
-            for (int col = 0; col < 3; ++col)
-                if (glyphs[k] & (1u << (14 - 3 * r - col)))
-                    pixel(rows, (17 - (4 * length - 1)) / 2 + 4 * c + col, 6 + r);
-    }
-    return draw(bmp, x, y, rows);
+    draw(bmp, x, y, rows);
+    /* Centred in the box; text y is its bottom row. */
+    fw_textf(bmp, fw_font5, x + 1 + (17 - width) / 2, y + 6, -1, "%s", text);
+    return 1;
 }
 
 int32_t modeldigi_draw_switch(void *bmp, int32_t x, int32_t y, int32_t value, int32_t flag)
