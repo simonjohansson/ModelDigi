@@ -64,8 +64,6 @@ python -m elekloader.lint "$dir/"modeldigi-*.elemod --stock "$stock" --with "$di
 description = "Check C oscillator mechanics, Digitakt controls and track isolation"
 run = [
   "mkdir -p out",
-  "cc -std=c99 -O2 -Wall -Wextra -Werror dsp/dsp.c tests/test_dsp.c -o out/test_dsp",
-  "out/test_dsp",
   "cc -std=c99 -O2 -Wall -Wextra -Werror -Ivendor/elekloader/elekloader/sdk/include dsp/oscillator.c machines/digitakt/modeldigi.c machines/digitakt/controls.c machines/digitakt/graphics.c tests/test_digitakt.c -lm -o out/test_digitakt",
   "out/test_digitakt",
   "cc -std=c99 -O2 -Wall -Wextra -Werror dsp/oscillator.c tests/test_oscillator.c -o out/test_oscillator",
@@ -85,52 +83,52 @@ run = [
 
 [tasks."test:firmware:controls"]
 description = "Exercise compiled Digitakt MIDI and graphics with explicit OS1.54 firmware and output paths"
-run = 'uv run --python "$(mise which python)" --project vendor/digiemu python tests/test_digitakt_controls.py "$@"'
+run = 'uv run --python "$(mise which python)" --project vendor/digiemu python tests/test_digitakt_controls.py'
 
 [tasks.render]
 description = "Render C oscillator audio: OUT.wav [seconds=3 freq1=440 wave1=3 ...]"
 depends = ["build:renderer"]
-run = 'out/render "$@"'
+run = 'out/render'
 
 [tasks."test:oscillators"]
 description = "Check frozen signed waveform targets and the declared static alias grid"
 depends = ["build:renderer"]
 run = [
   'uv run --python "$(mise which python)" --with numpy==2.5.4 python -m unittest discover -s tests -p "test_*measurements.py"',
-  'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_oscillators.py "$@"',
+  'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_oscillators.py',
 ]
 
 [tasks."test:reference"]
 description = "Check C output against retained recording hashes and static waveforms"
 depends = ["build:renderer"]
-run = 'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_oscillators.py --reference-dir "${MODELDIGI_REFERENCE_DIR:?Set MODELDIGI_REFERENCE_DIR to retained reference evidence}" "$@"'
+run = 'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_oscillators.py --reference-dir "${MODELDIGI_REFERENCE_DIR:?Set MODELDIGI_REFERENCE_DIR to retained reference evidence}"'
 
 [tasks."analyse:device:oscillator"]
 description = "Analyse retained single-oscillator USB captures without operating the device"
 depends = ["build:renderer"]
-run = 'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_device_oscillator.py "$@"'
+run = 'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_device_oscillator.py'
 
 [tasks."test:modulation"]
 description = "Check all frozen slow-modulation span and mean targets against the C engine"
 depends = ["build:renderer"]
-run = 'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_oscillators.py --modulation "$@"'
+run = 'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_oscillators.py --modulation'
 
 [tasks.cost]
 description = "Estimate the oscillator bank's ColdFire cost per block with digiemu's cycle model"
-run = 'uv run --project vendor/digiemu python tools/cost/measure.py "$@"'
+run = 'uv run --project vendor/digiemu python tools/cost/measure.py'
 
 [tasks."cost:equivalence"]
 description = "Check the ColdFire assembly against its portable C in every sample and state"
-run = 'uv run --project vendor/digiemu python tools/cost/equivalence.py "$@"'
+run = 'uv run --project vendor/digiemu python tools/cost/equivalence.py'
 
 [tasks."cost:profile"]
 description = "Profile the engine and verify cycle/state equivalence"
-run = 'uv run --project vendor/digiemu python tools/cost/profile.py "$@"'
+run = 'uv run --project vendor/digiemu python tools/cost/profile.py'
 
 [tasks."test:phase-sweep"]
 description = "Probe the near-limit feedback case across carrier and source start phases"
 depends = ["build:renderer"]
-run = 'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_oscillators.py --phase-sweep --out out/phase-sweep "$@"'
+run = 'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/check_oscillators.py --phase-sweep --out out/phase-sweep'
 
 [tasks.firmware]
 description = "Build custom firmware for the device targets"

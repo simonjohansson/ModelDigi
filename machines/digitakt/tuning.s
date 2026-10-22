@@ -1,5 +1,5 @@
 | SPDX-License-Identifier: GPL-2.0-or-later
-| Native UI paths shared by the supported Digitakt releases.
+| Native UI paths in Digitakt OS 1.54.
         .section .run, "ax"
         .globl modeldigi_view_value, modeldigi_native_encoder, modeldigi_parameter_set
 modeldigi_view_value:

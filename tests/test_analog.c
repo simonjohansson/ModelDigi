@@ -124,8 +124,15 @@ static void wander(void)
             for (unsigned k = 0; k < BLOCKS; ++k) { c += d[v][k] * d[w][k]; a += d[v][k] * d[v][k]; b += d[w][k] * d[w][k]; }
             assert(fabs(c / sqrt(a * b)) < 0.35);
         }
-    /* A second instance wanders differently. */
-    modeldigi_osc_state t;
+}
+
+/* Two banks started together wander differently. */
+static void instances(void)
+{
+    modeldigi_osc_params p = bank();
+    modeldigi_osc_state s, t;
+    int32_t out[32];
+    modeldigi_osc_init(&s);
     modeldigi_osc_init(&t);
     for (unsigned b = 0; b < 1500 * 5; ++b) { modeldigi_osc_render(&s, &p, out, 32); modeldigi_osc_render(&t, &p, out, 32); }
     assert(memcmp(s.drift, t.drift, sizeof s.drift));
@@ -186,6 +193,7 @@ int main(void)
     splitting();
     switching();
     wander();
+    instances();
     mixer_curve();
     dc();
     puts("PASS: analog drift split/freeze/resume/bounds/rate/independence, mixer curve and DC");

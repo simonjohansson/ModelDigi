@@ -27,8 +27,8 @@ its two pages:
 
 - **OSC:** oscillator ranges and waveforms, plus relative tuning for oscillators
   2 and 3.
-- **MIX:** master tuning, oscillator levels, oscillator 3 control, and modulation
-  on/off and depth.
+- **MIX:** the Analog switch, oscillator 3 control, modulation on/off and
+  depth, and oscillator levels.
 
 Other tracks keep their own sounds.
 

@@ -1,4 +1,4 @@
-"""Attribute the cost image at one engine rate (default 4x) with digiemu's cycle clock.
+"""Attribute the cost image's cycles with digiemu's cycle clock.
 
 Run with mise's Python and the pinned digiemu environment, as for measure.py.
 Debug information must leave the loaded image unchanged. Every call's cycles
@@ -8,26 +8,10 @@ import argparse
 from collections import Counter, defaultdict
 import hashlib
 import json
-import os
 from pathlib import Path
-import struct
 import sys
 
 import measure as cost
-
-
-def debug_build(folder, image, factor):
-    for name, source in [('oscillator', 'dsp/oscillator.c'), ('driver', 'tools/cost/driver.c')]:
-        cost.run('m68k-elf-gcc', *cost.CFLAGS, '-DMODELDIGI_OVERSAMPLE=%d' % factor, '-g',
-                 '-c', str(cost.ROOT / source), '-o', str(folder / (name + '-debug.o')))
-    elf = folder / 'cost-debug.elf'
-    libgcc = cost.run('m68k-elf-gcc', '-mcpu=54455', '-print-libgcc-file-name').strip()
-    cost.run('m68k-elf-ld', '-T', str(cost.ROOT / 'tools/cost/cost.ld'),
-             str(folder / 'driver-debug.o'), str(folder / 'oscillator-debug.o'), libgcc, '-o', str(elf))
-    binary = folder / 'cost-debug.bin'
-    cost.run('m68k-elf-objcopy', '-O', 'binary', str(elf), str(binary))
-    assert binary.read_bytes() == image, 'debug information changed the executable image'
-    return elf
 
 
 def profile_clock_type():
@@ -90,26 +74,15 @@ def profile_clock_type():
 
 
 def execute(image, symbols, blocks, clock_type):
-    from emu.harness import Machine
-    from unicorn.m68k_const import UC_M68K_REG_A7, UC_M68K_REG_D0, UC_M68K_REG_SR
-    machine = Machine()
-    machine.ensure(0x40000000)
-    machine.uc.mem_write(0x40000400, image)
-    machine.uc.mem_write(cost.STOP, bytes.fromhex('4e71'))
-    machine.install_exceptions()
-    machine.uc.reg_write(UC_M68K_REG_SR, 0x2700)
+    machine = cost.machine(image)
     clock = clock_type(machine)
     calls = []
 
     def call(name, scenario, phase, argument=0):
         clock.category = f'{scenario}/{phase}'
-        sp = cost.STACK - 8
-        machine.uc.mem_write(sp, struct.pack('>II', cost.STOP, argument))
-        machine.uc.reg_write(UC_M68K_REG_A7, sp)
-        machine.uc.reg_write(UC_M68K_REG_D0, 0)
         before = clock.cycles
-        machine.uc.emu_start(symbols[name], cost.STOP)
-        ram = bytes(machine.uc.mem_read(symbols['_ram_start'], symbols['_end'] - symbols['_ram_start']))
+        cost.call(machine, symbols[name][0], argument)
+        ram = bytes(machine.uc.mem_read(symbols['_ram_start'][0], symbols['_end'][0] - symbols['_ram_start'][0]))
         calls.append(dict(scenario=scenario, phase=phase, cycles=clock.cycles - before,
                           ram_sha256=hashlib.sha256(ram).hexdigest()))
 
@@ -141,23 +114,21 @@ def source_locations(elf, addresses):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--blocks', type=int, default=24)
-    parser.add_argument('--factor', type=int, choices=(1, 2, 4, 8, 16), default=1)
     parser.add_argument('--out', type=Path)
     args = parser.parse_args()
     if args.blocks < 1:
         parser.error('--blocks must be positive')
-    args.out = args.out or cost.ROOT / f'out/profile-{args.factor}x'
+    args.out = args.out or cost.ROOT / 'out/profile'
     args.out.mkdir(parents=True, exist_ok=True)
-    sys.path.insert(0, os.environ.get('DIGIEMU', str(cost.ROOT / 'vendor/digiemu')))
-    from emu.cftiming import CycleClock
-    image, symbols, helpers = cost.build(args.factor, args.out)
+    image, symbols, helpers = cost.build(args.out)
     # ld's default _end is not guaranteed by the existing linker script.
-    sizes = cost.run('m68k-elf-nm', '-S', str(args.out / 'cost.elf'))
-    spans = [(int(p[0], 16), int(p[1], 16)) for line in sizes.splitlines()
-             if len(p := line.split()) == 4 and p[3] in ('cost_output', 'cost_state', 'cost_params')]
-    symbols['_end'] = max(address + size for address, size in spans)
-    symbols['_ram_start'] = min(address for address, _ in spans)
-    debug = debug_build(args.out, image, args.factor)
+    spans = [symbols[name] for name in ('cost_output', 'cost_state', 'cost_params')]
+    symbols['_end'] = (max(address + size for address, size in spans), 0)
+    symbols['_ram_start'] = (min(address for address, _ in spans), 0)
+    debug_image, _, _ = cost.build(args.out / 'debug', ['-g'])
+    assert debug_image == image, 'debug information changed the executable image'
+    debug = args.out / 'debug/cost.elf'
+    from emu.cftiming import CycleClock
     plain, baseline = execute(image, symbols, args.blocks, CycleClock)
     calls, clock = execute(image, symbols, args.blocks, profile_clock_type())
     assert calls == plain, 'profiling changed call costs or rendered state'
@@ -171,7 +142,7 @@ def main():
                 for pc, cycles in counter.most_common() if cycles]
         profiles[category] = dict(cycles=sum(counter.values()), instructions=rows,
                                  blocks=[dict(pc=hex(pc), hits=n) for pc, n in clock.hits[category].most_common()])
-    report = dict(factor=args.factor, blocks=args.blocks, helpers=helpers,
+    report = dict(blocks=args.blocks, helpers=helpers,
                   image_sha256=hashlib.sha256(image).hexdigest(), cycles=clock.cycles,
                   debug_image_identical=True, unprofiled_calls_identical=True,
                   decode_mismatches=clock.decode_mismatches, calls=calls, profiles=profiles)
@@ -185,7 +156,7 @@ def main():
                              'tools/cost/cost.ld', 'tools/cost/measure.py', 'tools/cost/profile.py',
                              'tools/check_oscillators.py', 'tests/reference/oscillator-targets-v1.json',
                              'tests/reference/modulation-source-phases-v1.json')},
-        timing_sha256=hashlib.sha256((Path(sys.path[0]) / 'emu/cftiming.py').read_bytes()).hexdigest())
+        timing_sha256=hashlib.sha256((cost.DIGIEMU / 'emu/cftiming.py').read_bytes()).hexdigest())
     (args.out / 'profile.json').write_text(json.dumps(report, indent=2) + '\n')
     for scenario in cost.SCENARIOS:
         rows = [r['cycles'] for r in calls if r['scenario'] == scenario and r['phase'] == 'warm']

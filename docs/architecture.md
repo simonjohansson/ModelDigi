@@ -76,7 +76,7 @@ Oscillator 3's wider CONTROL-off curve is unchanged;
 its intermediate semitone positions use the nearest existing stored fraction
 (within 0.15 cents of the displayed tuning amount). Held-step edits retain
 the native lock path. Other controls retain BR's whole-unit stepping.
-Frequency, tune and depth reuse the stock round visualization, without ticks.
+Frequency and depth reuse the stock round visualization, without ticks.
 UI-only graphics show waveform shapes, range footage, switches and level bars. Oscillator 3's second
 waveform picture is reverse saw.
 These pictures do not change stored values or the audio path.
