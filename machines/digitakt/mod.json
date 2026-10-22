@@ -1,11 +1,11 @@
 {
  "id": "modeldigi",
- "version": "0.2",
+ "version": "0.1",
  "title": "ModelDigi",
  "author": "simonjohansson",
  "category": "Machines",
  "license": "GPL-2.0-or-later",
- "description": "ModelDigi naive three-oscillator experiment (machine 42): plain waveforms summed, no modulation.",
+ "description": "Model D-style oscillator section with three oscillators, pitch modulation, and switchable analog drift and mixer saturation.",
  "device": "digitakt-mk1",
  "os": "1.54",
  "defsym": {"MODELDIGI_KEY_STATE": "0x4217cbf0"},
