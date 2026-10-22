@@ -36,6 +36,10 @@ MIDI CC 16–23 control OSC; CC 24–30 control MIX in page order. Selectors use
 0–5, and other values use 0–127. See Development for the companion-version
 requirement before testing saved sounds.
 
+![ModelDigi OSC page](docs/images/modeldigi-osc.png)
+
+![ModelDigi MIX page](docs/images/modeldigi-mix.png)
+
 ## CPU use
 
 **ModelDigi is a CPU-heavy mod.** It generates its waveforms in real time and
