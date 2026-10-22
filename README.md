@@ -13,6 +13,8 @@ A Model D–style oscillator section for the **Digitakt mk1**.
   sequenced notes, and oscillator 3 can modulate the pitch of the others.
 - The waveforms and modulation match measurements of an original Model D's
   oscillators, and are checked against them on a computer.
+- On the Digitakt, each oscillator drifts slightly in pitch, as analog
+  oscillators do. See [Analog character](docs/analog.md).
 
 ModelDigi currently supplies the oscillator section, rather than the complete
 Model D filter, envelopes and amplifier.

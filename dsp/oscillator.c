@@ -315,6 +315,33 @@ static void run(const voice *c, uint32_t *phase, uint32_t *previous, uint32_t st
     *previous = last;
 }
 
+#ifdef MODELDIGI_ANALOG
+/* Analog character, a design choice rather than a measurement: each oscillator's pitch wanders
+ * slowly and independently, as a smoothed Ornstein-Uhlenbeck process stepped every DRIFT_FRAMES
+ * on an absolute frame grid. Uniform noise of +-2^10 units (2^-24 octave) a step against a leak of
+ * 1/4096 gives about 1.9 cents RMS with a correlation time of about 2.7 s; a 32-step smoother
+ * removes the steps, and the drift is held within +-6 cents. */
+#define DRIFT_FRAMES 32
+#define DRIFT_LIMIT 83886      /* 6 cents in 2^-24 octave */
+static uint32_t drift_instances;   /* seeds banks apart */
+
+static int32_t limit(int32_t x, int32_t bound)
+{
+    return x < -bound ? -bound : x > bound ? bound : x;
+}
+
+static void drift_step(modeldigi_osc_state *s)
+{
+    for (unsigned v = 0; v < 3; ++v) {
+        uint32_t x = s->seed;
+        x ^= x << 13; x ^= x >> 17; x ^= x << 5;
+        s->seed = x;
+        s->wander[v] = limit(s->wander[v] - (s->wander[v] >> 12) + ((int32_t)x >> 21), 2 * DRIFT_LIMIT);
+        s->drift[v] = limit(s->drift[v] + ((s->wander[v] - s->drift[v]) >> 5), DRIFT_LIMIT);
+    }
+}
+#endif
+
 void modeldigi_osc_init(modeldigi_osc_state *state)
 {
     for (unsigned v = 0; v < 3; ++v) {
@@ -323,6 +350,12 @@ void modeldigi_osc_init(modeldigi_osc_state *state)
     }
     for (unsigned k = 0; k < TAPS - 1; ++k)
         state->tail[k] = 0;
+#ifdef MODELDIGI_ANALOG
+    state->frame = 0;
+    state->seed = 2654435761u * ++drift_instances | 1;
+    for (unsigned v = 0; v < 3; ++v)
+        state->wander[v] = state->drift[v] = 0;
+#endif
 }
 
 void modeldigi_osc_render(modeldigi_osc_state *state, const modeldigi_osc_params *params,
@@ -343,16 +376,28 @@ void modeldigi_osc_render(modeldigi_osc_state *state, const modeldigi_osc_params
     int modulated = params->modulation_enabled && depth;
     for (size_t done = 0; done < frames;) {
         unsigned n = frames - done < 32 ? (unsigned)(frames - done) : 32;
+        uint32_t base[3] = { step[0], step[1], step[2] };
+#ifdef MODELDIGI_ANALOG
+        /* Chunks follow the drift grid, so the split of a render does not change its output. */
+        unsigned left = DRIFT_FRAMES - state->frame % DRIFT_FRAMES;
+        if (left == DRIFT_FRAMES)
+            drift_step(state);
+        if (n > left)
+            n = left;
+        for (unsigned v = 0; v < 3; ++v)
+            base[v] = modulate(step[v], state->drift[v] >> 8);
+        state->frame += n;
+#endif
         int32_t w[32 + TAPS - 1], octaves[32];   /* w[k]: sample k - EDGE_HALF of this block */
         for (unsigned k = 0; k < TAPS - 1; ++k)
             w[k] = state->tail[k];
         for (unsigned k = TAPS - 1; k < n + TAPS - 1; ++k)
             w[k] = 0;
         /* Oscillator 3 first: its phases set the block's modulation. */
-        run(&c[2], &state->phase[2], &state->last[2], step[2], modulated ? octaves : 0, modulated ? &c[2] : 0, depth,
+        run(&c[2], &state->phase[2], &state->last[2], base[2], modulated ? octaves : 0, modulated ? &c[2] : 0, depth,
             params->osc3_control, w, n);
         for (unsigned v = 0; v < 2; ++v)
-            run(&c[v], &state->phase[v], &state->last[v], step[v], modulated ? octaves : 0, 0, 0, 0, w, n);
+            run(&c[v], &state->phase[v], &state->last[v], base[v], modulated ? octaves : 0, 0, 0, 0, w, n);
         for (unsigned i = 0; i < n; ++i)
             output[done + i] = w[i];
         for (unsigned k = 0; k < TAPS - 1; ++k)

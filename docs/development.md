@@ -37,8 +37,9 @@ the SDK's hash verification and reject unknown firmware.
 | Command | Result |
 |---|---|
 | `mise run build` | Builds Core, machine-pages and ModelDigi for Digitakt OS1.54; lints the machine with its dependencies. Artifacts go into `out/os<OS>/`. |
-| `mise run firmware` | Builds and patches the selected stock OS into `out/Digitakt_ModelDigi.syx`. No device transfer. |
-| `mise run emu` | Builds firmware, prepares it in digiemu and opens its panel. Emulator data stays in `.digiemu/`. |
+| `mise run firmware` | Builds and patches the selected stock OS into `out/Digitakt_ModelDigi.syx`, with the analog character layer. No device transfer. |
+| `mise run firmware:digitakt:clean` | Builds the same firmware without the analog character layer into `out/Digitakt_ModelDigi-clean.syx`, for emulator checks. |
+| `mise run emu` | Builds the clean firmware, prepares it in digiemu and opens its panel. Emulator data stays in `.digiemu/`. |
 | `mise run test` | Checks C oscillator state, splitting, bounds and routing, plus Digitakt control decoding, value text, page layout, actual bank output, state lifetime and track isolation. |
 
 The first three tasks dispatch to Digitakt and Digitone. Every Digitone
@@ -232,10 +233,10 @@ full-bank modulation, audio-rate alias performance or two-instance cost.
 
 ## Evidence boundaries
 
-For compiled Digitakt control checks, supply an already packaged image:
+For compiled Digitakt control checks, supply the clean packaged image:
 
 ```sh
-mise run test:firmware:controls --firmware out/Digitakt_ModelDigi.syx --os 1.54 --out out/control-check
+mise run test:firmware:controls --firmware out/Digitakt_ModelDigi-clean.syx --os 1.54 --out out/control-check
 ```
 
 The output directory must be new. This check boots native firmware, exercises
