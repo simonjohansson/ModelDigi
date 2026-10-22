@@ -55,11 +55,12 @@ jobs:
         run: mise bootstrap
       - name: ColdFire assembly matches its C
         run: mise run cost:equivalence
-      - name: Render cost within the one-instance budget
-        run: mise run cost
       - name: Build and lint the Digitakt mod
         run: mise run build:digitakt
       - name: Package the firmware
         run: mise run firmware:digitakt
       - name: Emulator control checks
         run: mise run test:firmware:controls --firmware out/Digitakt_ModelDigi.syx --out out/controls
+      # Last, so an over-budget engine still gets every other check.
+      - name: Render cost within the one-instance budget
+        run: mise run cost
