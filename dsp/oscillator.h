@@ -24,6 +24,8 @@ typedef struct {
     uint32_t frame;            /* frames rendered, for the drift grid */
     uint32_t seed;             /* drift noise */
     int32_t wander[3], drift[3];  /* each oscillator's pitch drift, 2^-24 octave */
+    int32_t mix_in, mix_residue;  /* the mixer's previous input and its distortion */
+    int32_t dc_in, dc_out;     /* the mixer's DC blocker */
 #endif
 } modeldigi_osc_state;
 

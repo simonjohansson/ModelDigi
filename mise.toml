@@ -72,7 +72,7 @@ run = [
   "out/test_oscillator",
   "cc -std=c99 -O2 -Wall -Wextra -Werror -Wno-unused-function tests/test_edge.c -o out/test_edge",
   "out/test_edge",
-  "cc -std=c99 -O2 -Wall -Wextra -Werror -DMODELDIGI_ANALOG dsp/oscillator.c tests/test_analog.c -lm -o out/test_analog",
+  "cc -std=c99 -O2 -Wall -Wextra -Werror -Wno-unused-function -DMODELDIGI_ANALOG tests/test_analog.c -lm -o out/test_analog",
   "out/test_analog",
 ]
 

@@ -4,7 +4,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
-#include "../dsp/oscillator.h"
+#include "../dsp/oscillator.c"   /* the private mixer functions too */
 
 #define CENT (16777216.0 / 1200)   /* 2^-24 octave units per cent */
 
@@ -96,10 +96,62 @@ static void wander(void)
     assert(memcmp(s.drift, t.drift, sizeof s.drift));
 }
 
+/* The mixer curve over the bank's range (sums stay below about 0.35 of full scale): odd, monotone,
+ * unity for small signals, tanh(drive * s) / drive within 2e-5 of full scale at the table's
+ * effective drive, bounded by 1 / drive engine units. */
+/* The mixer's whole curve, tanh(drive * s) / drive in output Q31. */
+static int32_t saturate(int32_t q)
+{
+    return q + 6 * distortion6(q);
+}
+
+static void mixer_curve(void)
+{
+    const double unit = 2147483648.0 / 16, drive = MIX_DRIVE * unit / (4096 * 16777216.0);   /* 0.5996 */
+    int32_t previous = INT32_MIN;
+    for (int64_t q = -860000000; q <= 860000000; q += 16411) {
+        int32_t y = saturate((int32_t)q);
+        assert(saturate((int32_t)-q) == -y);
+        assert((int64_t)y >= (int64_t)previous - 2048);   /* monotone to fixed-point quantization, 2^11 units (-120 dBFS) */
+        previous = y;
+        double exact = tanh(drive * (double)q / unit) / drive * unit;
+        assert(fabs(y - exact) < 2e-5 * 2147483648.0);
+        assert(fabs((double)y) <= unit / drive + 1);
+        if (q > -(1 << 22) && q < (1 << 22))
+            assert(fabs(y - (double)q) <= fabs((double)q) * 1e-3 + 2);
+    }
+}
+
+/* The DC blocker settles a constant to zero, and a saturated narrow pulse keeps a zero mean (one
+ * voice: several detuned pulses make intermodulation products a few hertz from DC, which pass). */
+static void dc(void)
+{
+    modeldigi_osc_state s;
+    modeldigi_osc_init(&s);
+    int32_t y = 0;
+    for (unsigned i = 0; i < 48000; ++i)
+        y = dc_block(&s, 100000000);
+    assert(y < 1024 && y > -2048);   /* the leak rounds to zero below 2^10 units */
+    modeldigi_osc_params p = bank();
+    p.waveform[0] = 6;
+    p.frequency_q16_16[0] = 1000u * 65536;
+    p.level[0] = 65535;
+    p.level[1] = p.level[2] = 0;
+    static int32_t out[48000 * 5];
+    modeldigi_osc_init(&s);
+    modeldigi_osc_render(&s, &p, out, 48000 * 5);
+    double sum = 0;
+    for (unsigned i = 48000; i < 48000 * 5; ++i) sum += out[i];
+    /* Bound: a few cycles' worth of window error on a 0.1 full-scale pulse over 4000 cycles. */
+    assert(fabs(sum / (48000 * 4) / 2147483648.0) < 1e-4);
+}
+
 int main(void)
 {
     splitting();
     wander();
-    puts("PASS: analog drift split/bounds/rate/independence");
+    mixer_curve();
+    dc();
+    puts("PASS: analog drift split/bounds/rate/independence, mixer curve and DC");
     return 0;
 }
