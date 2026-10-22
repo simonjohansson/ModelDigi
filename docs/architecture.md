@@ -1,14 +1,13 @@
 # Architecture
 
 ModelDigi separates the sound engine from device integration, following OB-1.
-The intended instrument is a Minimoog Model D clone. The oscillator bank is
-implemented for host testing. The Digitakt machine runs a restricted timing
-trial: oscillator 1 at the production 4× rate, with oscillators 2/3 silent and modulation disabled.
+The intended instrument is a Minimoog Model D clone. The oscillator bank runs in host tests and on the Digitakt machine, where
+all three oscillators and their modulation sound.
 
 | Boundary | Responsibility |
 |---|---|
 | Shared oscillator bank | Three continuously running phases, seven waveforms, linear source levels and conditional exponential oscillator-3 modulation. Caller-owned state; 48 kHz mono Q31 output; no firmware or UI dependencies. |
-| Device audio adapter | Produce one 32-sample signed 32-bit block from oscillator 1 during the timing trial. |
+| Device audio adapter | Produce one 32-sample signed 32-bit block from the bank for each ModelDigi track. |
 | Digitakt integration | Register the machine, describe its two SRC pages, decode stored values and the trig note into bank parameters, and fill only its tracks' audio blocks. |
 | Digitone integration | Reserved for a future port; no implementation yet. |
 | Elekloader Core and machine-pages | Firmware exports, machine registration, render dispatch and SRC page behavior. |
@@ -18,19 +17,16 @@ The Digitakt callback inspects eight tracks and replaces only ModelDigi
 blocks, leaving other tracks untouched. It uses the SDK render event. Audio callbacks
 must remain bounded and must not allocate, perform I/O or wait.
 Each track owns its bank state, initialized when entering ModelDigi and kept
-across trigs, note changes and source muting. Oscillators 2/3 still advance
-their clocks while inaudible. The trial restriction changes neither their
-stored control meanings nor the shared engine's behavior.
+across trigs, note changes and source muting. Muted oscillators still advance
+their clocks.
 
-Each bank also owns 768 bytes of transient workspace for 64 internal mix
-samples and modulation factors. Rendering reuses that memory without heap
-allocation or shared scratch. It processes eight output frames per chunk at
-4× and 8×, and four at 16×, keeping the workspace capacity fixed. This
-keeps bulk buffers off the audio callback's interrupted task stack.
-Initialization resets only persistent oscillator and filter state; workspace
-is overwritten before use. Exact state comparisons cover the persistent
-state, while workspace contents may differ with render splitting. The private
-bank layout is not a saved-sound format.
+Each bank's state is small: three phases, each voice's previous step and the
+next samples' pending output. Rendering works through at most 32 frames at a
+time in a short local buffer, without heap allocation or shared scratch, and
+uses at most about 650 bytes of the audio callback's interrupted task stack,
+less than the earlier oversampled engine's 776. Rendering in one call or in
+pieces gives identical output and state. The private bank layout is not a
+saved-sound format.
 
 ## Digitakt controls
 
@@ -100,15 +96,16 @@ Clamped modulation trajectories are safety cases outside the fidelity domain.
 Keep device contracts out of shared DSP.
 Digitone must establish its own contracts when implemented.
 
-Audio uses polynomial step/slope corrections and elliptic polyphase halfband
-decimation: two branches of first-order allpass sections per stage, which null
-each stage's Nyquist frequency exactly at any coefficient rounding. Each
-waveform except the pulses is linear in phase over at most two segments, so a
-voice is a level-scaled line per segment, recomputed once per render. The
-engine uses 32-bit products only and links no 64-bit runtime helpers, so it
-can run inside a firmware mod. The internal rate is a compile-time choice; it
-has not yet been selected against a device CPU budget. Modulation uses a
-separate pre-level control tap,
+Audio renders directly at 48 kHz. Each waveform is linear in phase between its
+edges; every step (saw reset, pulse edge) and slope change (triangle corner)
+is smoothed by a Kaiser-windowed sinc reaching six samples either side, so the
+output is the ideal waveform low-passed by that kernel and sampled, six
+samples late. The kernel's response is flat to 0.5 dB at 16 kHz and 5 dB down
+at 20 kHz, and the alias checks model it exactly. Each edge's corrections are
+completed to their exact sums, so the sampled output keeps the ideal
+waveform's mean. The engine uses 32-bit products only and links no 64-bit
+runtime helpers, so it can run inside a firmware mod. Modulation uses a
+separate pre-level control tap, refreshed every sample,
 preserving duty-dependent mean pitch and conditional self-feedback. Init sets
 phases to 0, 1/3 and 2/3; notes, muting and selector changes do not reset them.
 No second oscillator implementation serves as the sound oracle.

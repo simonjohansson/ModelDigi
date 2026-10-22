@@ -82,7 +82,7 @@ def measure(image, symbols, blocks):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('factors', nargs='*', type=int, default=[1, 2, 4, 8])
+    parser.add_argument('factors', nargs='*', type=int, default=[1])
     parser.add_argument('--blocks', type=int, default=24)
     parser.add_argument('--out', type=Path, default=ROOT / 'out/cost')
     args = parser.parse_args()

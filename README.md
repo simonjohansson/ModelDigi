@@ -11,14 +11,11 @@ sequencer and shape its sound with the track's existing filter, amp and effects.
 ## What works today
 
 - Digitakt mk1 builds target **OS 1.54 only**. Digitone support is planned.
-- The current device trial plays **oscillator 1 only**, with range, waveform,
-  tuning, level and sequenced notes.
-- Oscillators 2 and 3 are silent, and oscillator modulation is disabled for
-  this performance trial. Their controls are visible, but do not affect the
-  sound yet. The image above shows the full control layout.
+- All three oscillators play, with their ranges, waveforms, tuning, levels and
+  sequenced notes, and oscillator 3 can modulate the pitch of the others.
+- The waveforms and modulation match measurements of an original Model D's
+  oscillators, and are checked against them on a computer.
 
-The three-oscillator engine is tested on a computer; enabling the full bank
-on the Digitakt still needs further integration and performance checks.
 ModelDigi currently supplies the oscillator section, rather than the complete
 Model D filter, envelopes and amplifier.
 
@@ -32,8 +29,7 @@ its two pages:
 - **MIX:** master tuning, oscillator levels, oscillator 3 control, and modulation
   on/off and depth.
 
-For the current trial, use **RNG1**, **WAV1**, **TUNE** and **LEV1** to shape
-oscillator 1. Other tracks keep their own sounds.
+Other tracks keep their own sounds.
 
 MIDI CC 16–23 control OSC; CC 24–30 control MIX in page order. Selectors use
 0–5, and other values use 0–127. See Development for the companion-version
@@ -41,19 +37,17 @@ requirement before testing saved sounds.
 
 ## CPU use
 
-**ModelDigi is a CPU-heavy mod.** It generates its waveforms in real time at
-four times the audio output rate, then applies waveform corrections and
-filtering to reduce unwanted digital tones (aliasing). Enabling all three
-oscillators and their pitch modulation adds further work, including the
-possibility of oscillator 3 modulating itself. This processing shares the
-Digitakt's CPU with its other tracks and effects.
+**ModelDigi is a CPU-heavy mod.** It generates its waveforms in real time and
+smooths every waveform edge to keep unwanted digital tones (aliasing) low.
+Pitch modulation, and especially many sharp edges at high pitches, add work.
+This processing shares the Digitakt's CPU with its other tracks and effects.
 
-Full-bank performance and the supported number of simultaneous ModelDigi
-tracks are still being qualified.
+The supported number of simultaneous ModelDigi tracks is still being
+qualified.
 
-We recommend including [DigiHealth](https://github.com/irpina/digihealth#install)
-when composing your firmware in Elekloader, and leaving
-**SETTINGS → FAST AUDIO** ON. FAST AUDIO runs the Digitakt's existing audio
+Include [DigiHealth](https://github.com/irpina/digihealth#install) when
+composing your firmware in Elekloader, and leave **SETTINGS → FAST AUDIO** ON:
+ModelDigi's performance budget assumes it. FAST AUDIO runs the Digitakt's existing audio
 code from faster memory to free up processing time.
 
 ## Firmware and documentation

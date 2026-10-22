@@ -6,14 +6,14 @@ Keep code comments and README files free of issue references. Commit messages ma
 
 ## Project orientation
 
-ModelDigi is a future Minimoog Model D clone. Its shared C oscillator bank runs in a host renderer; the Digitakt mk1 currently runs a one-audible-oscillator timing trial at the production 4× rate with modulation disabled. Digitakt firmware targets OS1.54 only. Digitone is a scaffold whose placeholder tasks succeed without producing a working port. Do not add other synthesis sections, controls or extra workflows unless requested.
+ModelDigi is a future Minimoog Model D clone. Its shared C oscillator bank runs in a host renderer and on the Digitakt mk1, where all three oscillators and their modulation sound. Digitakt firmware targets OS1.54 only. Digitone is a scaffold whose placeholder tasks succeed without producing a working port. Do not add other synthesis sections, controls or extra workflows unless requested.
 
 Read [Architecture](docs/architecture.md) for integration boundaries and [Development and verification](docs/development.md) for setup, commands and checks. Before implementing Model D behavior, establish manufacturer sources and document numeric constraints and confidence separately from measurements.
 
 - Manage language runtimes with mise. `mise run test` runs host DSP checks without stock firmware or the cross-toolchain; it does not verify device integration, persistence, CPU headroom or analog fidelity.
 - The Digitakt machine uses permanent machine ID 42 and the approved two-page control meanings. Changes to the ID or saved parameter meanings need explicit authorization.
-- Keep the Digitakt trial restricted to oscillator 1 until the full bank's integration and cost are separately qualified. Preserve oscillator headroom and level matching checks.
-- Production oversampling is 4×. The static alias limit is −60 dBc for fundamentals up to 12 kHz and −50 dBc above. Cost reductions may change output if every frozen instrument tolerance and the alias limit still pass; keep the 10% firmware render reserve in the worst case. Keep printed specifications, circuit assumptions, model choices and hardware measurements distinct.
+- Digitakt load budgets assume DigiHealth is installed with FAST AUDIO on. Preserve oscillator headroom and level matching checks.
+- The engine renders at 48 kHz without oversampling; its edge-correction kernel is part of the response the checks model. The static alias limit is −60 dBc for fundamentals up to 12 kHz and −50 dBc above. Cost reductions may change output if every frozen instrument tolerance and the alias limit still pass; keep the 10% firmware render reserve in the worst case. Keep printed specifications, circuit assumptions, model choices and hardware measurements distinct.
 - Stock firmware and raw research remain local and ignored. Keep device-specific firmware assumptions out of the shared sound engine and leave dependency submodules unchanged unless the task requires them.
 
 ## GitHub issues
