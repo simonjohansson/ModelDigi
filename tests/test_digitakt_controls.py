@@ -159,6 +159,35 @@ def main():
         report['checks'].append('fine FRQ with stronger semitone hold; slower FUNC steps, zero crossing and CONTROL-off wide range')
         report['checks'].append('working version-4 record follows fine, FUNC, reverse and wide tuning edits')
 
+        # FRQ3's range follows the stored CONTROL, not the value after an LFO on it.
+        tap('LFO')
+        for _ in range(400):
+            session.turn(session.encoder('D'), 2, after_ms=120); tap('YES')
+            if stored()[4] >= 47 << 8: break
+        assert stored()[4] == 47 << 8, stored()[4]  # the LFO's DEST: CONTROL's slot
+        tap('SRC')
+        send([0xb0,109,127]); send([0x90,60,100])  # full LFO depth, then a held note
+        def live_control():
+            return struct.unpack('>53h', uc.mem_read(symbols['FW_VOICE_PARAMS'], 106))[29 + 1]
+        lfo_control = {}
+        for off in (True, False):
+            send([0xb0,22,64])
+            for _ in range(400):
+                if (live_control() < 64 << 8) == off: break
+                wait(10)
+            else:
+                raise AssertionError('the LFO never moved CONTROL across its threshold')
+            lfo_control['off' if off else 'on'] = live_control()
+            session.press(session.code('FUNC')); wait(60)
+            for _ in range(3): session.turn(session.encoder('G'),8,after_ms=200)
+            assert stored()[23] == 92 << 8, (off, stored()[23])  # the narrow steps above
+            screen('frq3-lfo-control-' + ('off' if off else 'on'))
+            session.release(session.code('FUNC')); wait(60)
+        assert stored()[47] == 127 << 8
+        send([0x80,60,0,0xb0,109,64,0xb0,22,64])
+        report['lfo_live_control_8_8'] = lfo_control
+        report['checks'].append('FRQ3 tuning keeps the stored CONTROL range while an LFO moves CONTROL')
+
         # Native fine stepping must take several detents to cross a selector position.
         selector_turns = {}
         for encoder, cc, slot in (('A',16,17), ('B',17,18), ('C',18,19),
