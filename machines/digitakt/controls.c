@@ -179,6 +179,12 @@ void modeldigi_decode(const int16_t values[MD_VALUES], int32_t note, modeldigi_o
     p->osc3_control = control;
 }
 
+int modeldigi_osc3_free(const uint8_t *sound)
+{
+    const uint8_t *word = sound + 0x14 + 2 * (46 + MD_CTRL - 8);   /* the second page's values: slots 46-52 */
+    return (int16_t)(word[0] << 8 | word[1]) < CENTER;
+}
+
 /* ---- value text ------------------------------------------------------------------------------ */
 
 static char *put_text(char *buf, const char *s)

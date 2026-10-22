@@ -78,7 +78,7 @@ int modeldigi_tuning_encoder(void *brain, const int32_t *event)
     int32_t before = modeldigi_view_value(view, id, &locked);
     /* Held-step edits keep the native lock path. */
     if (locked) { owner = 0; return 0; }
-    int wide = knob == 6 && (int16_t)(sound[114] << 8 | sound[115]) < (64 << 8);
+    int wide = knob == 6 && modeldigi_osc3_free(sound);
     int sign = event[4] > 0 ? 1 : -1;
     int amount = event[4] * sign;
     int function = (modeldigi_key_state[2] & 2) != 0;

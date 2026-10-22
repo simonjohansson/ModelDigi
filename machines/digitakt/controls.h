@@ -22,6 +22,10 @@ void modeldigi_decode(const int16_t values[MD_VALUES], int32_t note, modeldigi_o
 /* Writes a value's text (popup: about 7 characters beside the long name, else about 5); returns 1. */
 int modeldigi_text(int kind, int32_t value, int popup, char *buf);
 
+/* Whether a stored sound's CONTROL is off, widening FRQ3. The editor follows the stored value,
+ * not the one after locks and LFOs that the sound uses. */
+int modeldigi_osc3_free(const uint8_t *sound);
+
 /* Private device tuning helpers; values remain in the existing 8.8 format. */
 int32_t modeldigi_frq_cents(int32_t value);
 int32_t modeldigi_frq_step(int32_t value, int direction, int wide);
