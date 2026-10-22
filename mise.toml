@@ -116,6 +116,10 @@ run = 'uv run --python "$(mise which python)" --with numpy==2.5.4 python tools/c
 description = "Estimate the oscillator bank's ColdFire cost per block with digiemu's cycle model"
 run = 'uv run --project vendor/digiemu python tools/cost/measure.py "$@"'
 
+[tasks."cost:equivalence"]
+description = "Check the ColdFire assembly against its portable C in every sample and state"
+run = 'uv run --project vendor/digiemu python tools/cost/equivalence.py "$@"'
+
 [tasks."cost:profile"]
 description = "Profile the engine and verify cycle/state equivalence"
 run = 'uv run --project vendor/digiemu python tools/cost/profile.py "$@"'

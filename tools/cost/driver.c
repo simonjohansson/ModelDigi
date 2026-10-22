@@ -50,3 +50,25 @@ void cost_block(void)
 {
     modeldigi_osc_render(&cost_state, &cost_params, cost_output, 32);
 }
+
+/* Random parameters for equivalence checks: every shape plus an invalid one, frequencies from below
+ * 1/16 Hz to above 20 kHz on a rough log scale, any level and depth, both switches. */
+void cost_random(uint32_t seed)
+{
+    uint32_t x = seed * 2654435761u + 1;
+#define NEXT (x ^= x << 13, x ^= x >> 17, x ^= x << 5, x)
+    modeldigi_osc_params p = {0};
+    for (unsigned v = 0; v < 3; ++v) {
+        unsigned octave = NEXT % 20;
+        uint32_t base = 1u << (11 + octave);
+        p.frequency_q16_16[v] = base + (NEXT & (base - 1));
+        p.waveform[v] = (uint8_t)(NEXT % 8);
+        p.level[v] = (uint16_t)NEXT;
+    }
+    p.modulation_enabled = NEXT & 1;
+    p.osc3_control = NEXT & 1;
+    p.modulation_depth_q16_16 = NEXT % 160000;
+#undef NEXT
+    cost_params = p;
+    modeldigi_osc_init(&cost_state);
+}

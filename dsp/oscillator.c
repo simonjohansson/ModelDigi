@@ -121,7 +121,62 @@ typedef struct {
  * of step_q14 * 2^14 output units and its slope change of 8 * kink Q16 units a cycle, (last >> 16)
  * * kink output units a sample, to the TAPS samples w[0..TAPS - 1] around it, the sample after it
  * at w[EDGE_HALF]. */
-/* Out of line: one copy of the tap loops serves every edge, which the instruction cache rewards. */
+/* w[j] += (f1 * residue_j + f2 * step_j) >> shift for the TAPS packed pairs of a row, with 16-bit
+ * f1 and f2: every product fits 32 bits, as does their sum. */
+#if defined(__mcoldfire__) && !defined(MODELDIGI_NO_ASM)
+#define TAPS_ASM 1
+#define MODELDIGI_STR2(x) #x
+#define MODELDIGI_STR(x) MODELDIGI_STR2(x)
+void modeldigi_edge_taps(int32_t *w, const int32_t *pairs, uint32_t factors, uint32_t shift);
+/* EMAC, integer mode (the render sets MACSR): two multiply-accumulates a tap, the odd tap's pair
+ * loading on the even tap's first, alternating accumulators. factors: f1 high, f2 low. */
+__asm__(
+    "	.pushsection .text\n"
+    "	.even\n"
+    "	.type	modeldigi_edge_taps, @function\n"
+    "modeldigi_edge_taps:\n"
+    "	lea	-16(%sp),%sp\n"
+    "	movem.l	%d2-%d5,(%sp)\n"
+    "	move.l	20(%sp),%a0\n"
+    "	move.l	24(%sp),%a1\n"
+    "	move.l	28(%sp),%d1\n"
+    "	move.l	32(%sp),%d2\n"
+    "	moveq	#" MODELDIGI_STR(EDGE_HALF) ",%d5\n"
+    "	move.l	(%a1)+,%d3\n"
+    "1:\n"
+    "	mac.w	%d3u,%d1u,(%a1)+,%d0,%acc0\n"
+    "	mac.w	%d3l,%d1l,%acc0\n"
+    "	mac.w	%d0u,%d1u,%acc1\n"
+    "	mac.w	%d0l,%d1l,%acc1\n"
+    "	movclr.l	%acc0,%d4\n"
+    "	asr.l	%d2,%d4\n"
+    "	add.l	%d4,(%a0)+\n"
+    "	movclr.l	%acc1,%d4\n"
+    "	asr.l	%d2,%d4\n"
+    "	add.l	%d4,(%a0)+\n"
+    "	subq.l	#1,%d5\n"
+    "	beq.s	2f\n"
+    "	move.l	(%a1)+,%d3\n"
+    "	bra.s	1b\n"
+    "2:\n"
+    "	movem.l	(%sp),%d2-%d5\n"
+    "	lea	16(%sp),%sp\n"
+    "	rts\n"
+    "	.size	modeldigi_edge_taps, .-modeldigi_edge_taps\n"
+    "	.popsection\n");
+static inline __attribute__((always_inline)) void taps(int32_t *w, const int32_t *pairs, int32_t f1, int32_t f2, uint32_t shift)
+{
+    modeldigi_edge_taps(w, pairs, (uint32_t)f1 << 16 | ((uint32_t)f2 & 0xffff), shift);
+}
+#else
+static inline __attribute__((always_inline)) void taps(int32_t *w, const int32_t *pairs, int32_t f1, int32_t f2, uint32_t shift)
+{
+    for (unsigned j = 0; j < TAPS; ++j)
+        w[j] += (f1 * (pairs[j] >> 16) + f2 * (int16_t)pairs[j]) >> shift;
+}
+#endif
+
+/* Out of line: one copy of the corrections serves every edge, which the instruction cache rewards. */
 static __attribute__((noinline)) void event(int32_t *w, uint32_t behind, uint32_t last, divisor *q,
                                             int32_t step_q14, int32_t kink)
 {
@@ -130,21 +185,19 @@ static __attribute__((noinline)) void event(int32_t *w, uint32_t behind, uint32_
         q->recip = reciprocal(last);
     }
     int32_t d = (int32_t)quotient(behind, last, q->recip), row = d >> 10, f = d & 1023;
-    /* Residue j is table + delta * f / 1024: with the step folded into both factors once, each
-     * sample takes two products. The row sums give what was added, so the step's residues can be
-     * completed to their exact sum d - 1/2: the sampled output keeps the ideal waveform's mean. */
-    const int16_t *a = step_table[row], *e = step_delta[row];
-    int32_t s1 = step_q14, s2 = step_q14 * f >> 10;
-    for (unsigned j = 0; j < TAPS; ++j)
-        w[j] += (s1 * a[j] + s2 * e[j]) >> 1;
-    w[EDGE_HALF] += (step_q14 * (d - 32768) >> 2) - ((s1 * step_sums[row][0] + s2 * step_sums[row][1]) >> 1);
+    /* Residue j is pair high + low * f / 1024: with the step folded into both factors once, each
+     * sample takes two 16-bit products. The row sums give what was added, so the step's residues
+     * can be completed to their exact sum d - 1/2: the sampled output keeps the ideal waveform's
+     * mean. */
+    int32_t s2 = step_q14 * f >> 10;
+    taps(w, step_pairs[row], step_q14, s2, 1);
+    w[EDGE_HALF] += (step_q14 * (d - 32768) >> 2) - ((step_q14 * step_sums[row][0] + s2 * step_sums[row][1]) >> 1);
     if (kink) {
-        int32_t bend = ((int32_t)(last >> 16) * kink) >> 13, b2 = bend * f >> 10;
-        const int16_t *c = bend_table[row], *g = bend_delta[row];
-        for (unsigned j = 0; j < TAPS; ++j)
-            w[j] += (bend * c[j] + b2 * g[j]) >> 4;
+        /* (last >> 16) * kink >> 14 stays within 16 bits: (inc >> 16) * tri peaks at 27306 * 14570. */
+        int32_t bend = ((int32_t)(last >> 16) * kink) >> 14, b2 = bend * f >> 10;
+        taps(w, bend_pairs[row], bend, b2, 3);
         int32_t target = (int32_t)((uint32_t)d * (uint32_t)d >> 16) - d + 10923 + BEND_SUM_OFFSET;
-        w[EDGE_HALF] += (bend * target - bend * bend_sums[row][0] - b2 * bend_sums[row][1]) >> 4;
+        w[EDGE_HALF] += (bend * target - bend * bend_sums[row][0] - b2 * bend_sums[row][1]) >> 3;
     }
 }
 
@@ -275,6 +328,11 @@ void modeldigi_osc_init(modeldigi_osc_state *state)
 void modeldigi_osc_render(modeldigi_osc_state *state, const modeldigi_osc_params *params,
                           int32_t *output, size_t frames)
 {
+#ifdef TAPS_ASM
+    /* The firmware's render uses the EMAC too: keep its MACSR, and run the taps in integer mode. */
+    uint32_t macsr;
+    __asm__ volatile ("move.l %%macsr,%0\n\tmove.l %1,%%macsr" : "=&d"(macsr) : "d"(0u));
+#endif
     voice c[3];
     uint32_t step[3];
     for (unsigned v = 0; v < 3; ++v) {
@@ -301,4 +359,7 @@ void modeldigi_osc_render(modeldigi_osc_state *state, const modeldigi_osc_params
             state->tail[k] = w[n + k];
         done += n;
     }
+#ifdef TAPS_ASM
+    __asm__ volatile ("move.l %0,%%macsr" : : "d"(macsr));
+#endif
 }
