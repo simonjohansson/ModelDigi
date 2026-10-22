@@ -78,7 +78,7 @@ static void wander(void)
             double c = 0;
             for (unsigned b = 0; b + lag < BLOCKS; b += 7) c += (d[v][b] - mean) * (d[v][b + lag] - mean);
             c /= (BLOCKS - lag) / 7.0 * rms * rms;
-            if (c < 1 / M_E) break;
+            if (c < exp(-1)) break;
         }
         assert(lag >= 1500 / 2 && lag <= 1500 * 16);
         printf("oscillator %u: drift RMS %.2f cents, correlation time ~%.1f s\n", v + 1, rms, lag / 1500.0);
