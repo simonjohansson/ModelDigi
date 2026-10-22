@@ -1,4 +1,4 @@
-"""Measure retained oscillator1 device captures against C and frozen observations."""
+"""Measure retained single-oscillator device captures against C and frozen observations."""
 import argparse
 import json
 from pathlib import Path
@@ -61,13 +61,15 @@ def common_frequency(samples, rows):
 
 def waveform_checks(report, audio, renderer, out, targets):
     results = []
+    # Oscillator 3's second position is reverse saw where oscillators 1 and 2 have the combination.
+    shapes = (0, 2, 3, 4, 5, 6) if report.get('oscillator', 1) == 3 else (0, 1, 3, 4, 5, 6)
     rows = [r for r in report['segments'] if r['name'].startswith('wave')]
     for requested in sorted({int(r['name'].split('-note')[1].split('-')[0]) for r in rows}):
         group = [r for r in rows if int(r['name'].split('-note')[1].split('-')[0]) == requested]
         note = group[0]['before']['note_q16']
         saws = [r for r in group if r['before']['decoded']['waveform'] == 3]
-        if {r['before']['decoded']['waveform'] for r in group} != {0, 1, 3, 4, 5, 6}:
-            raise ValueError('Incomplete oscillator1 waveform set')
+        if {r['before']['decoded']['waveform'] for r in group} != set(shapes):
+            raise ValueError('Incomplete waveform set')
         if any(np.ptp(audio[r['start_frame']:r['end_frame'], 0]) <= 1e-10 for r in saws):
             results.extend(dict(name=r['name'], nominal_note=requested, native_note=r['before']['note_q16']/65536,
                                 status='no AC signal; native note path did not trigger', passed_frozen_ratio=False) for r in group)
@@ -80,7 +82,7 @@ def waveform_checks(report, audio, renderer, out, targets):
         count = min(8, fit_count)
         baseline = coefficients(audio[:, 0], saws[0], hz, fit_count)[:count]
         candidate = {}
-        for shape in (0, 1, 3, 4, 5, 6):
+        for shape in shapes:
             y = render(renderer, out, f'c-requested{requested}-wave{shape}', seconds=2, freq1=native, wave1=shape)
             candidate[shape] = harmonics(y[48000:], native, fit_count)[:count]
         for row in group:
