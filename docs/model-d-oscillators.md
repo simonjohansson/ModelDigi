@@ -1,8 +1,8 @@
 # Model D oscillator architecture and implementation basis
 
-Research date: 2026-10-19. Scope: the oscillator section of the original
-Minimoog Model D, delivered as a source for the host instrument's existing
-track processing. This is research and a proposed implementation basis.
+Scope: the oscillator section of the original Minimoog Model D, delivered as a
+source for the host instrument's existing track processing. This is the
+research basis for the implementation and its reference choice.
 
 ## Scope and recommended reference
 
@@ -13,7 +13,7 @@ Identify a reference instrument by its installed board and modifications,
 not its cabinet serial alone: boards could be replaced.
 
 Keep the early discrete board, later temperature-stabilized microA726 board,
-and modern reissues separate. Support one calibrated model first, with no
+and modern reissues separate. One calibrated model is supported, with no
 user-facing revision selector. The relevant original-board distinction is
 documented in the factory drawings [S2]; the component difference is also
 consistent with the CA3046 and microA726 manufacturer descriptions [S5, S6].
@@ -55,8 +55,7 @@ working notes also remain there. No source PDFs, firmware, recordings or
 third-party pictures belong in the reference branch.
 
 **Verified from sources** means a manual statement or readable drawing.
-**Derived** means our calculation from a stated model. **Proposed** means
-an implementation decision. **Unmeasured** means no physical Model D or
+**Derived** means our calculation from a stated model. **Unmeasured** means no physical Model D or
 ModelDigi device measurement was taken for this research.
 
 ## Original controls and waveform choices
@@ -110,9 +109,9 @@ drift amount to put into software. [S5, p. 5-24; S6, p. 68]
 
 The original service text calls the oscillators independent and
 non-synchronous. It documents repairs to reduce unwanted oscillator bleed
-and cross-modulation. Consequently, accidental coupling is not justification
-for adding sync, random detuning or a generic analog-character control.
-[S4, II and XII]
+and cross-modulation, so the reference model adds no coupling, sync or random
+detuning. Any analog character beyond the reference is a separate, opt-in
+model choice. [S4, II and XII]
 
 ### Derived signal model
 
@@ -161,8 +160,7 @@ modulation; the two-level example here follows directly from averaging.
 
 ### Polarity, loading and DC
 
-Choose a signed phase convention and document each shape against the
-selected drawing. Compare the two saw directions explicitly. Magnitude
+A signed phase convention documents each shape against the selected drawing. Compare the two saw directions explicitly. Magnitude
 spectra cannot establish their signs, and an output-path inversion cannot
 locate an oscillator-level inversion.
 
@@ -180,112 +178,75 @@ also identifies audible LO clicks as expected behavior.
 
 ## Frozen calibration basis
 
-[Calibration version 1](oscillator-calibration.md) resolves the initial
-implementation basis: signed normalized shape/level and pulse tables, loaded
-triangle/saw mixture, normal/wide tuning, LO observations, modulation offsets
-and conditional feedback means. Its portable numeric bundle freezes observable
+[Calibration version 1](oscillator-calibration.md) resolves the implementation
+basis: signed normalized shape/level and pulse tables, loaded triangle/saw
+mixture, normal/wide tuning, LO observations, modulation offsets and
+conditional feedback means. Its portable numeric bundle freezes observable
 reference targets and explicit engineering approximations. It does not claim
 unique internal voltages, physical-unit qualification or an exact continuous
 wheel law. Raw low-note/LO audio shape remains excluded; common-path harmonic
 ratios provide a separately validated static comparison.
-
-The actual shared C core is the next implementation. Its concrete interface
-requires approval before application; device controls and saved identity remain
-later gates. No second oscillator model is needed.
 
 The factory specification sheet itself contains an apparent oscillator-number
 typo for reverse saw; the original owner's guide and dedicated oscillator 3
 inverter drawing agree. Do not copy the isolated specification line as a
 behavioral requirement. [S3, printed vi; S1, F; S2, Figure 9-3]
 
-## Recommended digital implementation
+## Digital implementation rationale
 
-Start with a compact behavioral model, not a per-sample transistor solver.
-Exercise the actual shared C engine through a standalone host renderer, with
-independent analytic checks and reviewed recorded measurements. For static
-shapes, additive harmonic series can check the bandlimiting mathematics.
-For modulation, check numerical convergence of the same C algorithm as its
-internal rate increases; convergence alone does not establish circuit fidelity.
-Do not maintain a second oscillator implementation as a substitute for the
-recordings. Bounded fixed-point rendering is an engineering recommendation
-for ColdFire, not evidence that an implementation meets its CPU budget.
+The engine is a compact behavioral model, not a per-sample transistor solver.
+It is exercised as the actual shared C engine through a standalone host
+renderer, with independent analytic checks and reviewed recorded
+measurements. No second oscillator implementation substitutes for the
+recordings.
 
-1. Keep three phase states and correction history per machine instance.
-   Advance phases through notes, waveform changes and source muting. Note
-   events update pitch/gate ownership; they do not synchronize the VCOs.
-   A 32-bit phase at 48 kHz has an increment resolution of about 11.18
-   microhertz, sufficient to investigate the stated LO range without a
-   separate low-frequency oscillator algorithm. This calculation does not
-   bound errors in tuning conversion or modulation arithmetic.
-2. Use a shared phase definition for the saw-derived shapes, with measured
-   or circuit-derived shaping coefficients. Correct waveform jumps with
-   BLEP and derivative jumps with BLAMP. S7 describes polynomial step
-   correction; S8 covers slope correction, including triangle synthesis.
-3. Calculate oscillator 3 modulation at audio/internal sample rate.
-   Evaluate the complete feedback system against a converged oversampled
-   reference. Do not claim that static oscillator antialiasing also
-   suppresses all modulation sidebands. S9's cosine-specific bandwidth fit
-   is not a general saw/pulse-FM guarantee.
-4. Select the smallest fixed oversampling factor, if any, that passes the
-   reviewed quality matrix and the target timing budget. Do not add a
-   user quality selector or adaptive framework in advance of evidence.
-5. Preserve internal headroom using sufficiently wide accumulators and
-   explicit scaling. Review bounds before narrowing to output Q31.
-   Silence and invalid inputs must never create wraparound, NaNs or an
-   unbounded loop. No allocation, I/O or waiting in audio callbacks.
-6. Use one conservative output gain that preserves relative source levels.
-   Proposed initial maximum peak: -6 dBFS across the agreed matrix,
-   including transitions and bandlimiting overshoot. This is a headroom
-   policy to review, not a Model D voltage specification. Avoid auto-gain
-   based on the number of enabled oscillators and avoid routine clipping.
+1. Three phase states run per machine instance through notes, waveform
+   changes and source muting; notes do not synchronize the VCOs. A 32-bit
+   phase at 48 kHz has an increment resolution of about 11.18 microhertz,
+   enough for the LO range without a separate low-frequency algorithm.
+2. The saw-derived shapes share one phase definition with the calibrated
+   shaping coefficients. Waveform jumps are corrected with BLEP and slope
+   jumps with BLAMP [S7, S8], using one windowed-sinc kernel at the 48 kHz
+   output rate; the static alias limit is met without oversampling.
+3. Oscillator 3's modulation is evaluated every output sample. Static
+   antialiasing does not suppress modulation sidebands, and S9's
+   cosine-specific bandwidth fit is no general saw/pulse-FM guarantee, so
+   audio-rate FM quality is a separate question.
+4. Fixed-point rendering keeps explicit scaling and 32-bit products. Silence
+   and invalid inputs never create wraparound or unbounded loops; audio
+   callbacks never allocate, perform I/O or wait.
+5. One output gain preserves relative source levels, with peaks below
+   -6 dBFS across the tested matrix including correction overshoot. This is a
+   headroom policy, not a Model D voltage specification; there is no auto-gain
+   by enabled oscillator count and no routine clipping.
 
-OB-1 has useful fixed-point event-correction and test patterns. Its current
-engine is a two-VCO instrument with sub-octaves, hard sync, its own XMOD
-depth, source calibration, DC treatment and a 12 kHz increment limit.
-Reusing that complete voice would import unrelated behavior and restrict
-this model. Reuse only isolated, understood math with independent checks;
-do not change OB-1 or extract a shared library in this project.
+## Host integration
 
-## Host integration and approval boundaries
+The pinned SDK provides a 32-sample Q31 render event after track playback and
+before stock overdrive, at 48 kHz. Machine-pages 1.2 permits fifteen logical
+source values over two pages, which hold the whole control inventory: three
+waveform selectors, three ranges, three audio levels (zero mutes),
+oscillator 2/3 relative frequency, common tune, OSC 3 CONTROL, modulation
+depth and modulation enable. Combining level and mute is a deliberate device
+adaptation. Master tune is per machine instance, not global instrument tuning.
 
-Source inspection of the pinned SDK establishes a 32-sample Q31 render
-event after track playback and before stock overdrive. The emulator/device
-configuration is 48 kHz. Machine-pages 1.2 permits fifteen logical source
-values over two pages; the extra values use its version-4 sound handling.
-This is an SDK contract, not permission to revise its schema.
+Device parameter decoding, note arbitration, pitch conversion, voice lifetime
+and UI belong to the wrapper, which consumes the host's note and pitch
+behavior. Low-note priority, glide and a physical Model D's keyboard are
+separate controller features, not oscillator DSP. Non-ModelDigi tracks keep
+their stock processing.
 
-Proposed control inventory: three waveform selectors, three ranges, three
-audio levels (zero mutes), oscillator 2/3 relative frequency, common tune,
-OSC 3 CONTROL, modulation depth and modulation enable: **15 values**.
-This inventory fits the existing companion without a new persisted format.
-It is not a final page layout or approved set of parameter encodings.
-Combining level and mute is a deliberate device adaptation; separate
-remembered on/off switches would require another control-scope decision.
+## Evidence boundaries
 
-Before assigning slots/defaults, changing the shared DSP API, choosing a
-permanent machine ID or publishing sounds, present the concrete contract
-and obtain approval as AGENTS.md requires. Include centered tuning
-resolution, LO units, discrete selector treatment under LFOs/locks, MIDI
-mapping, cold defaults and save/reload behavior. Master tune is per machine
-instance here, not a request to change global instrument tuning.
-
-Keep all device parameter decoding, note arbitration, pitch conversion,
-voice lifetime and UI in the wrapper. Initially consume the host's note
-and pitch behavior. Low-note priority, glide and a physical Model D's
-keyboard are separate controller features, not necessary oscillator DSP.
-Preserve stock non-ModelDigi tracks. Leave the Digitone scaffold untouched.
-
-## Verification and delivery gates
-
-| Boundary | Required evidence |
+| Boundary | Evidence and what it does not show |
 |---|---|
-| Circuit/reference | Identified board, signed waveform records, transfer derivations and explicit uncertainties. A physical reference is desirable; circuit simulation alone remains simulation evidence. |
-| Host mechanics | Frequencies, all selectors/ranges, pulse duty/polarity, relative levels, DC paths, continuous phase, block-splitting equivalence, extreme inputs, overflow and buffer guards. |
-| Audio quality | Coherent spectral comparison against additive/oversampled reference; complex harmonics where phase matters; low and high pitches; narrow pulses; shape/range/level transitions. Proposed gates: pitch error at most 1 cent in the agreed unmodulated domain and static in-band alias residual at most -60 dBc over a stated practical pitch grid. Freeze exact analysis/window/band definitions before accepting results. |
-| Modulation | Tracking on/off, muted oscillator 3, all modulation shapes, low/audio rates, depth extremes, mean-pitch shift over complete modulation periods, self-modulation when connected, bounded feedback and convergence as the same C algorithm's internal rate increases. Distinguish cents of mean frequency from time-averaged pitch in cents. State the supported domain; do not weaken a failed gate silently. |
-| Firmware | Build/lint/package Digitakt OS1.54; compiled note/control dispatch, blank-to-configured cold start, locks/LFOs, machine switching, unrelated-track isolation and save/reload. |
-| Timing | Compare matched stock/scaffold and candidate firmware with two realistic ModelDigi instances, including other host activity. Record maximum render cost/jitter, not only average or host speed. No promised instance capacity before measurement. |
-| Physical device | After separately authorized installation, manual panel setup plus read-only USB verification by default; exact-build controls, levels, note behavior and persistence. Emulator success is not hardware qualification or analog-fidelity proof. |
+| Circuit/reference | Identified board, signed waveform records, transfer derivations and explicit uncertainties. Circuit simulation alone remains simulation evidence. |
+| Host mechanics | Frequencies, selectors and ranges, pulse duty and polarity, relative levels, DC, continuous phase, block-splitting equivalence, extreme inputs and bounds. |
+| Audio quality | Coherent spectral comparison against static Fourier identities with the kernel's response, including harmonic-bin errors: pitch within 1 cent and static in-band alias residual within the tiered limit over a fixed grid. Not audio-rate FM. |
+| Modulation | Tracking on/off, muted oscillator 3, all modulation shapes, depth, cents of mean frequency and time-averaged pitch, and conditional self-modulation, against the frozen recordings. |
+| Firmware | Build, lint and package for Digitakt OS1.54; compiled control dispatch, locks/LFOs, machine switching, unrelated-track isolation and save/reload. |
+| Timing | Matched baseline and candidate firmware on the device, worst render and reserve rather than averages; instance capacity only as measured. |
+| Physical device | USB recordings of the exact build compared through the same ratios; emulator success is neither hardware qualification nor analog-fidelity proof. |
 
 Keep regression expectations independent of the production implementation.
 Distinguish numerical mechanics, reference-model agreement, firmware
@@ -306,8 +267,7 @@ centered plots alone can conceal a duty-dependent offset. An integrity hash
 baseline records the files at the time it is established, and must not be
 presented as proof of earlier capture-time integrity.
 
-The implementation sequence and dependency graph belong in GitHub issues.
-This document records durable source findings and design rationale. The initial normalized calibration and observation targets are frozen in
-version 1, with exclusions and approximations stated separately. Shared DSP
-interfaces, device controls, sound identity and persisted meanings retain
-their explicit approval gates.
+This document records durable source findings and design rationale; plans
+and their sequence belong in GitHub issues. The normalized calibration and
+observation targets are frozen in version 1, with exclusions and
+approximations stated separately.

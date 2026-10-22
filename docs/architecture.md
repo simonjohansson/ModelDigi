@@ -23,8 +23,8 @@ their clocks.
 Each bank's state is small: three phases, each voice's previous step and the
 next samples' pending output. Rendering works through at most 32 frames at a
 time in a short local buffer, without heap allocation or shared scratch, and
-uses at most about 650 bytes of the audio callback's interrupted task stack,
-less than the earlier oversampled engine's 776. Rendering in one call or in
+uses at most about 650 bytes of the audio callback's interrupted task stack.
+Rendering in one call or in
 pieces gives identical output and state. The private bank layout is not a
 saved-sound format.
 
@@ -80,12 +80,12 @@ UI-only graphics show waveform shapes, range footage, switches and level bars. O
 waveform picture is reverse saw.
 These pictures do not change stored values or the audio path.
 
-Decoding runs once per 32-sample block from values after locks and LFOs.
+Decoding uses values after locks and LFOs, and reruns only when a track's
+values or note change.
 Selectors round to the nearest position; continuous values use the fraction
 an LFO adds. It uses 32-bit arithmetic only, because a mod links no 64-bit
 runtime helpers. Sounds save as the companion's version-4 record, which only
-machine-pages 1.2 or newer reads back; the experimental ID 121 was never
-published and its sounds load as ONESHOT. Changing a published meaning
+machine-pages 1.2 or newer reads back. Changing a published meaning
 requires an explicit compatibility decision.
 
 The device wrappers own parameter decoding, note/range/tuning conversion,
@@ -104,7 +104,9 @@ samples late. The kernel's response is flat to 0.5 dB at 16 kHz and 5 dB down
 at 20 kHz, and the alias checks model it exactly. Each edge's corrections are
 completed to their exact sums, so the sampled output keeps the ideal
 waveform's mean. The engine uses 32-bit products only and links no 64-bit
-runtime helpers, so it can run inside a firmware mod. Modulation uses a
+runtime helpers, so it can run inside a firmware mod. On ColdFire builds the
+corrections' multiply-accumulates run in hand-written EMAC code, which saves
+and restores the firmware's MAC mode and matches the portable C exactly. Modulation uses a
 separate pre-level control tap, refreshed every sample,
 preserving duty-dependent mean pitch and conditional self-feedback. Init sets
 phases to 0, 1/3 and 2/3; notes, muting and selector changes do not reset them.
