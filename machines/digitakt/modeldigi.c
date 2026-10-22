@@ -51,13 +51,6 @@ void modeldigi_digitakt_render(int32_t *blocks)
     }
 }
 
-/* Oscillator 3's CONTROL on the active track's sound (slot 47), for FRQ3's wide text. */
-static int osc3_free(void)
-{
-    const uint8_t *sound = fw_kit ? FW_SOUND(fw_kit, fw_active_track) : 0;
-    return sound && (int16_t)(sound[0x14 + 2 * 47] << 8 | sound[0x15 + 2 * 47]) < (64 << 8);
-}
-
 #define TEXT(fn, kind) \
     static int32_t fn(char *buf, int32_t value, int32_t ctx, int32_t machine) \
     { (void)machine; return modeldigi_text(kind, value, ctx, buf); }
@@ -71,7 +64,8 @@ TEXT(depth_text, MD_TEXT_DEPTH)
 static int32_t frq3_text(char *buf, int32_t value, int32_t ctx, int32_t machine)
 {
     (void)machine;
-    return modeldigi_text(osc3_free() ? MD_TEXT_FRQ_WIDE : MD_TEXT_FRQ, value, ctx, buf);
+    int wide = fw_kit && modeldigi_osc3_free(FW_SOUND(fw_kit, fw_active_track));
+    return modeldigi_text(wide ? MD_TEXT_FRQ_WIDE : MD_TEXT_FRQ, value, ctx, buf);
 }
 
 #define KNOB(label, long_name, max_, def_, flags_, fmt_, draw_) \
