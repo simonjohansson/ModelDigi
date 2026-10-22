@@ -12,6 +12,7 @@ Read [Architecture](docs/architecture.md) for integration boundaries and [Develo
 
 - Manage language runtimes with mise. `mise run test` runs host DSP checks without stock firmware or the cross-toolchain; it does not verify device integration, persistence, CPU headroom or analog fidelity.
 - The Digitakt machine uses permanent machine ID 42 and the approved two-page control meanings. Changes to the ID or saved parameter meanings need explicit authorization.
+- The analog character layer (`MODELDIGI_ANALOG`) is compiled only into the Digitakt device firmware; every check, the cost tools and the emulator use the clean engine. Keep the clean engine bit-identical whether or not the layer exists.
 - Digitakt load budgets assume DigiHealth is installed with FAST AUDIO on. Preserve oscillator headroom and level matching checks.
 - The engine renders at 48 kHz without oversampling; its edge-correction kernel is part of the response the checks model. The static alias limit is −60 dBc for fundamentals up to 12 kHz and −50 dBc above. Cost reductions may change output if every frozen instrument tolerance and the alias limit still pass; keep the 10% firmware render reserve in the worst case. Keep printed specifications, circuit assumptions, model choices and hardware measurements distinct.
 - Stock firmware and raw research remain local and ignored. Keep device-specific firmware assumptions out of the shared sound engine and leave dependency submodules unchanged unless the task requires them.
